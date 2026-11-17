@@ -1,0 +1,89 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --bg-page: #f3f4f8;
+  --bg-header: rgba(255, 255, 255, 0.92);
+  --bg-card: #ffffff;
+  --bg-subcard: #f8fafc;
+  --bg-input: #f1f5f9;
+  --border-card: #e2e8f0;
+  --border-sub: #cbd5e1;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  --dot-inactive: #cbd5e1;
+}
+
+.dark {
+  --bg-page: #111113;
+  --bg-header: rgba(22, 22, 25, 0.94);
+  --bg-card: #1c1c20;
+  --bg-subcard: #25252b;
+  --bg-input: #26262c;
+  --border-card: rgba(255, 255, 255, 0.08);
+  --border-sub: rgba(255, 255, 255, 0.09);
+  --text-primary: #f8fafc;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+  --dot-inactive: #32323a;
+}
+
+body {
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.bims-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: 1.25rem;
+  box-shadow: 0 4px 24px -4px rgba(0, 0, 0, 0.06);
+}
+
+.dark .bims-card {
+  box-shadow: 0 8px 30px -6px rgba(0, 0, 0, 0.45);
+}
+
+.bims-subcard {
+  background-color: var(--bg-subcard);
+  border: 1px solid var(--border-sub);
+  border-radius: 0.9rem;
+}
+
+.bims-input {
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-sub);
+  color: var(--text-primary);
+}
+
+.bims-striped-emerald {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    #22c55e,
+    #22c55e 8px,
+    #16a34a 8px,
+    #16a34a 16px
+  );
+}
+
+.bims-striped-amber {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    #f97316,
+    #f97316 8px,
+    #ea580c 8px,
+    #ea580c 16px
+  );
+}
+
+.bims-striped-gradient {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    #22c55e,
+    #22c55e 8px,
+    #f97316 8px,
+    #f97316 16px
+  );
+}

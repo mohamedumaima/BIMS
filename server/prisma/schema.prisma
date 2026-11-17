@@ -1,0 +1,420 @@
+generator client {
+  provider     = "prisma-client-js"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  STAFF
+}
+
+enum BuyerMarketType {
+  INTERNATIONAL
+  LOCAL
+}
+
+enum CurrencyCode {
+  USD
+  LKR
+}
+
+enum ValuationMethod {
+  FIFO
+  WEIGHTED_AVERAGE
+}
+
+enum MovementType {
+  STOCK_IN
+  STOCK_OUT
+  ADJUSTMENT
+}
+
+enum TransactionType {
+  IMPORT
+  EXPORT
+}
+
+enum ShipmentStatus {
+  PENDING
+  IN_TRANSIT
+  AT_CUSTOMS
+  DELIVERED
+  CANCELLED
+}
+
+enum DocumentType {
+  COMMERCIAL_INVOICE
+  PACKING_LIST
+  BILL_OF_LADING
+  CERTIFICATE_OF_ORIGIN
+  CUSTOMS_DECLARATION
+  OTHER
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  ORDERED
+  RECEIVED
+  CANCELLED
+}
+
+enum SalesOrderStatus {
+  QUOTATION
+  CONFIRMED
+  INVOICED
+  FULFILLED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PARTIAL
+  PAID
+}
+
+enum CommunicationChannel {
+  EMAIL
+  PHONE
+  MEETING
+  NOTE
+}
+
+enum NotificationType {
+  LOW_STOCK
+  SHIPMENT_STATUS
+  APPROVAL_REQUIRED
+  PAYMENT_DUE
+}
+
+model User {
+  userId       Int      @id @default(autoincrement()) @map("user_id")
+  name         String
+  email        String   @unique
+  role         UserRole @default(STAFF)
+  passwordHash String   @map("password_hash")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  transactions  Transaction[]
+  inventoryLogs InventoryLog[]
+  createdPOs    PurchaseOrder[]    @relation("CreatedPurchaseOrders")
+  approvedPOs   PurchaseOrder[]    @relation("ApprovedPurchaseOrders")
+  salesOrders   SalesOrder[]
+  uploadedDocs  Document[]
+  commLogs      CommunicationLog[]
+  notifications Notification[]
+
+  @@map("users")
+}
+
+model Supplier {
+  supplierId   Int          @id @default(autoincrement()) @map("supplier_id")
+  name         String
+  country      String       @default("Sri Lanka")
+  currency     CurrencyCode @default(LKR)
+  contactEmail String       @map("contact_email")
+  phone        String?
+  address      String?
+  paymentTerms String       @map("payment_terms")
+  balance      Decimal      @default(0) @db.Decimal(14, 2)
+  onTimeRate   Decimal      @default(100) @map("on_time_rate") @db.Decimal(5, 2)
+  accuracyRate Decimal      @default(100) @map("accuracy_rate") @db.Decimal(5, 2)
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  transactions   Transaction[]
+  purchaseOrders PurchaseOrder[]
+
+  @@map("suppliers")
+}
+
+model Customer {
+  customerId   Int             @id @default(autoincrement()) @map("customer_id")
+  name         String
+  country      String
+  marketType   BuyerMarketType @default(INTERNATIONAL) @map("market_type")
+  currency     CurrencyCode    @default(USD)
+  contactEmail String          @map("contact_email")
+  phone        String?
+  address      String?
+  creditLimit  Decimal         @default(0) @map("credit_limit") @db.Decimal(14, 2)
+  balance      Decimal         @default(0) @db.Decimal(14, 2)
+  createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  transactions      Transaction[]
+  salesOrders       SalesOrder[]
+  communicationLogs CommunicationLog[]
+
+  @@index([marketType])
+  @@map("customers")
+}
+
+model Product {
+  productId       Int             @id @default(autoincrement()) @map("product_id")
+  sku             String          @unique
+  name            String
+  category        String
+  hsCode          String?         @map("hs_code")
+  originRegion    String?         @map("origin_region")
+  description     String?
+  imageUrl        String?         @map("image_url")
+  unitPrice       Decimal         @map("unit_price") @db.Decimal(12, 2)
+  unitPriceLkr    Decimal         @default(0) @map("unit_price_lkr") @db.Decimal(14, 2)
+  costPrice       Decimal         @default(0) @map("cost_price") @db.Decimal(12, 2)
+  costPriceLkr    Decimal         @default(0) @map("cost_price_lkr") @db.Decimal(14, 2)
+  stockQty        Int             @default(0) @map("stock_qty")
+  reorderLevel    Int             @default(10) @map("reorder_level")
+  valuationMethod ValuationMethod @default(FIFO) @map("valuation_method")
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  orderItems         OrderItem[]
+  inventoryLogs      InventoryLog[]
+  stockBatches       StockBatch[]
+  purchaseOrderItems PurchaseOrderItem[]
+  salesOrderItems    SalesOrderItem[]
+  notifications      Notification[]
+
+  @@index([category])
+  @@map("products")
+}
+
+model Transaction {
+  txnId              Int             @id @default(autoincrement()) @map("txn_id")
+  txnNumber          String          @unique @map("txn_number")
+  type               TransactionType
+  status             ShipmentStatus  @default(PENDING)
+  currency           CurrencyCode    @default(USD)
+  txnDate            DateTime        @default(now()) @map("txn_date") @db.Date
+  totalValue         Decimal         @default(0) @map("total_value") @db.Decimal(14, 2)
+  hsCode             String?         @map("hs_code")
+  originCountry      String?         @map("origin_country")
+  destinationCountry String?         @map("destination_country")
+  dutyRate           Decimal         @default(0) @map("duty_rate") @db.Decimal(5, 2)
+  dutyAmount         Decimal         @default(0) @map("duty_amount") @db.Decimal(12, 2)
+  incoterms          String?
+  carrier            String?
+  trackingNumber     String?         @map("tracking_number")
+  shippingNotes      String?         @map("shipping_notes")
+  userId             Int             @map("user_id")
+  supplierId         Int?            @map("supplier_id")
+  customerId         Int?            @map("customer_id")
+  createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user          User           @relation(fields: [userId], references: [userId], onDelete: Restrict)
+  supplier      Supplier?      @relation(fields: [supplierId], references: [supplierId], onDelete: Restrict)
+  customer      Customer?      @relation(fields: [customerId], references: [customerId], onDelete: Restrict)
+  orderItems    OrderItem[]
+  documents     Document[]
+  stockBatches  StockBatch[]
+  notifications Notification[]
+
+  @@index([userId])
+  @@index([supplierId])
+  @@index([customerId])
+  @@index([type, status])
+  @@index([txnDate])
+  @@map("transactions")
+}
+
+model OrderItem {
+  itemId    Int     @id @default(autoincrement()) @map("item_id")
+  txnId     Int     @map("txn_id")
+  productId Int     @map("product_id")
+  quantity  Int
+  unitPrice Decimal @map("unit_price") @db.Decimal(12, 2)
+  lineTotal Decimal @map("line_total") @db.Decimal(14, 2)
+
+  transaction Transaction @relation(fields: [txnId], references: [txnId], onDelete: Cascade)
+  product     Product     @relation(fields: [productId], references: [productId], onDelete: Restrict)
+
+  @@index([txnId])
+  @@index([productId])
+  @@map("order_items")
+}
+
+model Document {
+  docId         Int          @id @default(autoincrement()) @map("doc_id")
+  txnId         Int          @map("txn_id")
+  docType       DocumentType @map("doc_type")
+  fileName      String       @map("file_name")
+  filePath      String       @map("file_path")
+  storageKey    String?      @map("storage_key")
+  mimeType      String       @default("application/pdf") @map("mime_type")
+  generatedDate DateTime     @default(now()) @map("generated_date") @db.Timestamptz(6)
+  uploadedById  Int?         @map("uploaded_by_id")
+
+  transaction Transaction @relation(fields: [txnId], references: [txnId], onDelete: Cascade)
+  uploadedBy  User?       @relation(fields: [uploadedById], references: [userId], onDelete: SetNull)
+
+  @@index([txnId])
+  @@index([uploadedById])
+  @@map("documents")
+}
+
+model InventoryLog {
+  logId         Int          @id @default(autoincrement()) @map("log_id")
+  productId     Int          @map("product_id")
+  movementType  MovementType @map("movement_type")
+  quantity      Int
+  unitCost      Decimal      @default(0) @map("unit_cost") @db.Decimal(12, 2)
+  referenceNote String?      @map("reference_note")
+  logDate       DateTime     @default(now()) @map("log_date") @db.Timestamptz(6)
+  userId        Int          @map("user_id")
+
+  product Product @relation(fields: [productId], references: [productId], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [userId], onDelete: Restrict)
+
+  @@index([productId])
+  @@index([userId])
+  @@index([logDate])
+  @@map("inventory_log")
+}
+
+model StockBatch {
+  batchId      Int      @id @default(autoincrement()) @map("batch_id")
+  productId    Int      @map("product_id")
+  txnId        Int?     @map("txn_id")
+  initialQty   Int      @map("initial_qty")
+  remainingQty Int      @map("remaining_qty")
+  unitCost     Decimal  @map("unit_cost") @db.Decimal(12, 2)
+  receivedAt   DateTime @default(now()) @map("received_at") @db.Timestamptz(6)
+
+  product     Product      @relation(fields: [productId], references: [productId], onDelete: Cascade)
+  transaction Transaction? @relation(fields: [txnId], references: [txnId], onDelete: SetNull)
+
+  @@index([productId, remainingQty])
+  @@index([txnId])
+  @@map("stock_batches")
+}
+
+model PurchaseOrder {
+  poId         Int                 @id @default(autoincrement()) @map("po_id")
+  poNumber     String              @unique @map("po_number")
+  supplierId   Int                 @map("supplier_id")
+  createdById  Int                 @map("created_by_id")
+  approvedById Int?                @map("approved_by_id")
+  currency     CurrencyCode        @default(LKR)
+  status       PurchaseOrderStatus @default(DRAFT)
+  totalAmount  Decimal             @default(0) @map("total_amount") @db.Decimal(14, 2)
+  expectedDate DateTime?           @map("expected_date") @db.Date
+  receivedDate DateTime?           @map("received_date") @db.Date
+  notes        String?
+  createdAt    DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  supplier   Supplier            @relation(fields: [supplierId], references: [supplierId], onDelete: Restrict)
+  createdBy  User                @relation("CreatedPurchaseOrders", fields: [createdById], references: [userId], onDelete: Restrict)
+  approvedBy User?               @relation("ApprovedPurchaseOrders", fields: [approvedById], references: [userId], onDelete: SetNull)
+  items      PurchaseOrderItem[]
+
+  @@index([supplierId])
+  @@index([createdById])
+  @@index([approvedById])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  poItemId    Int     @id @default(autoincrement()) @map("po_item_id")
+  poId        Int     @map("po_id")
+  productId   Int     @map("product_id")
+  orderedQty  Int     @map("ordered_qty")
+  receivedQty Int     @default(0) @map("received_qty")
+  unitCost    Decimal @map("unit_cost") @db.Decimal(12, 2)
+
+  purchaseOrder PurchaseOrder @relation(fields: [poId], references: [poId], onDelete: Cascade)
+  product       Product       @relation(fields: [productId], references: [productId], onDelete: Restrict)
+
+  @@index([poId])
+  @@index([productId])
+  @@map("purchase_order_items")
+}
+
+model SalesOrder {
+  soId          Int              @id @default(autoincrement()) @map("so_id")
+  soNumber      String           @unique @map("so_number")
+  customerId    Int              @map("customer_id")
+  createdById   Int              @map("created_by_id")
+  currency      CurrencyCode     @default(USD)
+  status        SalesOrderStatus @default(QUOTATION)
+  totalAmount   Decimal          @default(0) @map("total_amount") @db.Decimal(14, 2)
+  paymentStatus PaymentStatus    @default(UNPAID) @map("payment_status")
+  paidAmount    Decimal          @default(0) @map("paid_amount") @db.Decimal(14, 2)
+  dueDate       DateTime?        @map("due_date") @db.Date
+  notes         String?
+  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  customer  Customer         @relation(fields: [customerId], references: [customerId], onDelete: Restrict)
+  createdBy User             @relation(fields: [createdById], references: [userId], onDelete: Restrict)
+  items     SalesOrderItem[]
+
+  @@index([customerId])
+  @@index([createdById])
+  @@map("sales_orders")
+}
+
+model SalesOrderItem {
+  soItemId  Int     @id @default(autoincrement()) @map("so_item_id")
+  soId      Int     @map("so_id")
+  productId Int     @map("product_id")
+  quantity  Int
+  unitPrice Decimal @map("unit_price") @db.Decimal(12, 2)
+
+  salesOrder SalesOrder @relation(fields: [soId], references: [soId], onDelete: Cascade)
+  product    Product    @relation(fields: [productId], references: [productId], onDelete: Restrict)
+
+  @@index([soId])
+  @@index([productId])
+  @@map("sales_order_items")
+}
+
+model CommunicationLog {
+  commId     Int                  @id @default(autoincrement()) @map("comm_id")
+  customerId Int                  @map("customer_id")
+  userId     Int                  @map("user_id")
+  channel    CommunicationChannel @default(EMAIL)
+  subject    String
+  notes      String
+  loggedAt   DateTime             @default(now()) @map("logged_at") @db.Timestamptz(6)
+
+  customer Customer @relation(fields: [customerId], references: [customerId], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [userId], onDelete: Restrict)
+
+  @@index([customerId])
+  @@index([userId])
+  @@map("communication_logs")
+}
+
+model Notification {
+  notificationId Int              @id @default(autoincrement()) @map("notification_id")
+  type           NotificationType
+  title          String
+  message        String
+  isRead         Boolean          @default(false) @map("is_read")
+  productId      Int?             @map("product_id")
+  txnId          Int?             @map("txn_id")
+  userId         Int?             @map("user_id")
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  product     Product?     @relation(fields: [productId], references: [productId], onDelete: Cascade)
+  transaction Transaction? @relation(fields: [txnId], references: [txnId], onDelete: Cascade)
+  user        User?        @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@index([isRead, createdAt])
+  @@index([productId])
+  @@index([txnId])
+  @@index([userId])
+  @@map("notifications")
+}
