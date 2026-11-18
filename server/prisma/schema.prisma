@@ -54,7 +54,26 @@ enum DocumentType {
   BILL_OF_LADING
   CERTIFICATE_OF_ORIGIN
   CUSTOMS_DECLARATION
+  CHEQUE
+  BILL
+  RECEIPT
+  SALES_INVOICE
+  PURCHASE_ORDER
+  MANAGEMENT_RECORD
   OTHER
+}
+
+enum DocumentCategory {
+  TRADE
+  FINANCIAL
+  MANAGEMENT
+  INVENTORY
+}
+
+enum DocumentAccessLevel {
+  ALL_STAFF
+  MANAGER_ADMIN
+  ADMIN_ONLY
 }
 
 enum PurchaseOrderStatus {
@@ -95,14 +114,16 @@ enum NotificationType {
 }
 
 model User {
-  userId       Int      @id @default(autoincrement()) @map("user_id")
-  name         String
-  email        String   @unique
-  role         UserRole @default(STAFF)
-  passwordHash String   @map("password_hash")
-  isActive     Boolean  @default(true) @map("is_active")
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  userId         Int      @id @default(autoincrement()) @map("user_id")
+  name           String
+  email          String   @unique
+  role           UserRole @default(STAFF)
+  passwordHash   String   @map("password_hash")
+  isActive       Boolean  @default(true) @map("is_active")
+  sessions       Int      @default(1)
+  authorityLevel Int      @default(2) @map("authority_level")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   transactions  Transaction[]
   inventoryLogs InventoryLog[]
@@ -116,20 +137,46 @@ model User {
   @@map("users")
 }
 
+model RolePermission {
+  role             UserRole @id
+  label            String
+  inventory        String   @default("Full Access")
+  tradeDocs        String   @default("Read Only") @map("trade_docs")
+  finance          String   @default("Restricted")
+  inventoryEnabled Boolean  @default(true) @map("inventory_enabled")
+  tradeDocsEnabled Boolean  @default(true) @map("trade_docs_enabled")
+  financeEnabled   Boolean  @default(false) @map("finance_enabled")
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("role_permissions")
+}
+
+model SecurityLog {
+  id        Int      @id @default(autoincrement())
+  text      String
+  timeLabel String   @map("time_label")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("security_logs")
+}
+
 model Supplier {
-  supplierId   Int          @id @default(autoincrement()) @map("supplier_id")
-  name         String
-  country      String       @default("Sri Lanka")
-  currency     CurrencyCode @default(LKR)
-  contactEmail String       @map("contact_email")
-  phone        String?
-  address      String?
-  paymentTerms String       @map("payment_terms")
-  balance      Decimal      @default(0) @db.Decimal(14, 2)
-  onTimeRate   Decimal      @default(100) @map("on_time_rate") @db.Decimal(5, 2)
-  accuracyRate Decimal      @default(100) @map("accuracy_rate") @db.Decimal(5, 2)
-  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  supplierId      Int          @id @default(autoincrement()) @map("supplier_id")
+  name            String
+  country         String       @default("Sri Lanka")
+  currency        CurrencyCode @default(LKR)
+  contactEmail    String       @map("contact_email")
+  phone           String?
+  address         String?
+  paymentTerms    String       @map("payment_terms")
+  balance         Decimal      @default(0) @db.Decimal(14, 2)
+  onTimeRate      Decimal      @default(100) @map("on_time_rate") @db.Decimal(5, 2)
+  accuracyRate    Decimal      @default(100) @map("accuracy_rate") @db.Decimal(5, 2)
+  reliabilityDots Int          @default(4) @map("reliability_dots")
+  featured        Boolean      @default(false)
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   transactions   Transaction[]
   purchaseOrders PurchaseOrder[]
@@ -148,6 +195,8 @@ model Customer {
   address      String?
   creditLimit  Decimal         @default(0) @map("credit_limit") @db.Decimal(14, 2)
   balance      Decimal         @default(0) @db.Decimal(14, 2)
+  tier         String          @default("Enterprise")
+  featured     Boolean         @default(false)
   createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -168,12 +217,14 @@ model Product {
   originRegion    String?         @map("origin_region")
   description     String?
   imageUrl        String?         @map("image_url")
+  imagePublicId   String?         @map("image_public_id")
   unitPrice       Decimal         @map("unit_price") @db.Decimal(12, 2)
   unitPriceLkr    Decimal         @default(0) @map("unit_price_lkr") @db.Decimal(14, 2)
   costPrice       Decimal         @default(0) @map("cost_price") @db.Decimal(12, 2)
   costPriceLkr    Decimal         @default(0) @map("cost_price_lkr") @db.Decimal(14, 2)
   stockQty        Int             @default(0) @map("stock_qty")
   reorderLevel    Int             @default(10) @map("reorder_level")
+  dots            Int             @default(2)
   valuationMethod ValuationMethod @default(FIFO) @map("valuation_method")
   createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -192,8 +243,10 @@ model Product {
 model Transaction {
   txnId              Int             @id @default(autoincrement()) @map("txn_id")
   txnNumber          String          @unique @map("txn_number")
+  title              String?
   type               TransactionType
   status             ShipmentStatus  @default(PENDING)
+  badge              String?
   currency           CurrencyCode    @default(USD)
   txnDate            DateTime        @default(now()) @map("txn_date") @db.Date
   totalValue         Decimal         @default(0) @map("total_value") @db.Decimal(14, 2)
@@ -206,13 +259,14 @@ model Transaction {
   carrier            String?
   trackingNumber     String?         @map("tracking_number")
   shippingNotes      String?         @map("shipping_notes")
-  userId             Int             @map("user_id")
+  partnerName        String?         @map("partner_name")
+  userId             Int?            @map("user_id")
   supplierId         Int?            @map("supplier_id")
   customerId         Int?            @map("customer_id")
   createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  user          User           @relation(fields: [userId], references: [userId], onDelete: Restrict)
+  user          User?          @relation(fields: [userId], references: [userId], onDelete: SetNull)
   supplier      Supplier?      @relation(fields: [supplierId], references: [supplierId], onDelete: Restrict)
   customer      Customer?      @relation(fields: [customerId], references: [customerId], onDelete: Restrict)
   orderItems    OrderItem[]
@@ -245,21 +299,35 @@ model OrderItem {
 }
 
 model Document {
-  docId         Int          @id @default(autoincrement()) @map("doc_id")
-  txnId         Int          @map("txn_id")
-  docType       DocumentType @map("doc_type")
-  fileName      String       @map("file_name")
-  filePath      String       @map("file_path")
-  storageKey    String?      @map("storage_key")
-  mimeType      String       @default("application/pdf") @map("mime_type")
-  generatedDate DateTime     @default(now()) @map("generated_date") @db.Timestamptz(6)
-  uploadedById  Int?         @map("uploaded_by_id")
+  docId           Int                 @id @default(autoincrement()) @map("doc_id")
+  txnId           Int?                @map("txn_id")
+  docType         DocumentType        @map("doc_type")
+  category        DocumentCategory    @default(FINANCIAL)
+  accessLevel     DocumentAccessLevel @default(MANAGER_ADMIN) @map("access_level")
+  title           String
+  referenceNo     String?             @map("reference_no")
+  amount          Decimal?            @db.Decimal(14, 2)
+  currency        CurrencyCode?
+  fileName        String              @map("file_name")
+  filePath        String              @map("file_path")
+  storageKey      String?             @map("storage_key")
+  storageProvider String              @default("CLOUDINARY") @map("storage_provider")
+  resourceType    String              @default("auto") @map("resource_type")
+  deliveryType    String              @default("authenticated") @map("delivery_type")
+  fileFormat      String?             @map("file_format")
+  mimeType        String              @default("application/pdf") @map("mime_type")
+  fileSizeBytes   Int                 @default(0) @map("file_size_bytes")
+  notes           String?
+  generatedDate   DateTime            @default(now()) @map("generated_date") @db.Timestamptz(6)
+  uploadedById    Int?                @map("uploaded_by_id")
+  uploadedByName  String?             @map("uploaded_by_name")
 
-  transaction Transaction @relation(fields: [txnId], references: [txnId], onDelete: Cascade)
-  uploadedBy  User?       @relation(fields: [uploadedById], references: [userId], onDelete: SetNull)
+  transaction Transaction? @relation(fields: [txnId], references: [txnId], onDelete: SetNull)
+  uploadedBy  User?        @relation(fields: [uploadedById], references: [userId], onDelete: SetNull)
 
   @@index([txnId])
   @@index([uploadedById])
+  @@index([category, accessLevel])
   @@map("documents")
 }
 
@@ -269,12 +337,13 @@ model InventoryLog {
   movementType  MovementType @map("movement_type")
   quantity      Int
   unitCost      Decimal      @default(0) @map("unit_cost") @db.Decimal(12, 2)
+  unitCostLkr   Decimal      @default(0) @map("unit_cost_lkr") @db.Decimal(14, 2)
   referenceNote String?      @map("reference_note")
   logDate       DateTime     @default(now()) @map("log_date") @db.Timestamptz(6)
-  userId        Int          @map("user_id")
+  userId        Int?         @map("user_id")
 
   product Product @relation(fields: [productId], references: [productId], onDelete: Cascade)
-  user    User    @relation(fields: [userId], references: [userId], onDelete: Restrict)
+  user    User?   @relation(fields: [userId], references: [userId], onDelete: SetNull)
 
   @@index([productId])
   @@index([userId])
@@ -303,8 +372,10 @@ model PurchaseOrder {
   poId         Int                 @id @default(autoincrement()) @map("po_id")
   poNumber     String              @unique @map("po_number")
   supplierId   Int                 @map("supplier_id")
-  createdById  Int                 @map("created_by_id")
+  createdById  Int?                @map("created_by_id")
   approvedById Int?                @map("approved_by_id")
+  productName  String?             @map("product_name")
+  orderedQty   Int                 @default(0) @map("ordered_qty")
   currency     CurrencyCode        @default(LKR)
   status       PurchaseOrderStatus @default(DRAFT)
   totalAmount  Decimal             @default(0) @map("total_amount") @db.Decimal(14, 2)
@@ -315,7 +386,7 @@ model PurchaseOrder {
   updatedAt    DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   supplier   Supplier            @relation(fields: [supplierId], references: [supplierId], onDelete: Restrict)
-  createdBy  User                @relation("CreatedPurchaseOrders", fields: [createdById], references: [userId], onDelete: Restrict)
+  createdBy  User?               @relation("CreatedPurchaseOrders", fields: [createdById], references: [userId], onDelete: SetNull)
   approvedBy User?               @relation("ApprovedPurchaseOrders", fields: [approvedById], references: [userId], onDelete: SetNull)
   items      PurchaseOrderItem[]
 
@@ -344,9 +415,13 @@ model PurchaseOrderItem {
 model SalesOrder {
   soId          Int              @id @default(autoincrement()) @map("so_id")
   soNumber      String           @unique @map("so_number")
+  invoiceCode   String?          @map("invoice_code")
   customerId    Int              @map("customer_id")
-  createdById   Int              @map("created_by_id")
+  createdById   Int?             @map("created_by_id")
+  marketType    BuyerMarketType  @default(INTERNATIONAL) @map("market_type")
   currency      CurrencyCode     @default(USD)
+  productName   String?          @map("product_name")
+  quantity      Int              @default(0)
   status        SalesOrderStatus @default(QUOTATION)
   totalAmount   Decimal          @default(0) @map("total_amount") @db.Decimal(14, 2)
   paymentStatus PaymentStatus    @default(UNPAID) @map("payment_status")
@@ -357,7 +432,7 @@ model SalesOrder {
   updatedAt     DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   customer  Customer         @relation(fields: [customerId], references: [customerId], onDelete: Restrict)
-  createdBy User             @relation(fields: [createdById], references: [userId], onDelete: Restrict)
+  createdBy User?            @relation(fields: [createdById], references: [userId], onDelete: SetNull)
   items     SalesOrderItem[]
 
   @@index([customerId])
@@ -381,16 +456,18 @@ model SalesOrderItem {
 }
 
 model CommunicationLog {
-  commId     Int                  @id @default(autoincrement()) @map("comm_id")
-  customerId Int                  @map("customer_id")
-  userId     Int                  @map("user_id")
-  channel    CommunicationChannel @default(EMAIL)
-  subject    String
-  notes      String
-  loggedAt   DateTime             @default(now()) @map("logged_at") @db.Timestamptz(6)
+  commId      Int                  @id @default(autoincrement()) @map("comm_id")
+  customerId  Int                  @map("customer_id")
+  userId      Int?                 @map("user_id")
+  senderLabel String?              @map("sender_label")
+  channel     CommunicationChannel @default(EMAIL)
+  subject     String
+  notes       String
+  attachments String[]             @default([])
+  loggedAt    DateTime             @default(now()) @map("logged_at") @db.Timestamptz(6)
 
   customer Customer @relation(fields: [customerId], references: [customerId], onDelete: Cascade)
-  user     User     @relation(fields: [userId], references: [userId], onDelete: Restrict)
+  user     User?    @relation(fields: [userId], references: [userId], onDelete: SetNull)
 
   @@index([customerId])
   @@index([userId])

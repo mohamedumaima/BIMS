@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
+import { Link } from 'react-router-dom';
 import { FileText, Pencil, Trash2, X } from 'lucide-react';
 import {
   CardHeader,
@@ -248,9 +249,12 @@ export default function ShipmentsPage() {
                 <h3 className="text-base font-semibold tracking-tight">
                   Trade Document Repository
                 </h3>
-                <span className="w-7 h-7 rounded-full bims-subcard flex items-center justify-center text-zinc-400">
-                  <FileText className="w-3.5 h-3.5" />
-                </span>
+                <Link
+                  to="/documents"
+                  className="text-xs font-semibold text-violet-400 hover:text-violet-300 flex items-center gap-1"
+                >
+                  <span>Open Vault ↗</span>
+                </Link>
               </div>
 
               <div className="grid grid-cols-2 gap-3.5">

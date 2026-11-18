@@ -274,4 +274,102 @@ describe('Ceylon Spices BIMS API — Full CRUD, Dual Currency & RBAC AI Assistan
     );
     expect(createInvRes.body.byMarket.LOCAL.creditUtilization).toBe(localBefore.creditUtilization);
   });
+
+  test('Health check reports cloud DB/media status and RBAC-protected document vault accepts images & PDFs', async () => {
+    const healthRes = await request(app).get('/api/health');
+    expect(healthRes.statusCode).toBe(200);
+    expect(healthRes.body).toHaveProperty('databaseProvider');
+    expect(healthRes.body).toHaveProperty('cloudinaryConfigured');
+    expect(healthRes.body).toHaveProperty('mediaStorageProvider');
+
+    // STAFF is blocked from uploading restricted FINANCIAL records
+    const staffUpload = await request(app)
+      .post('/api/documents')
+      .set('Authorization', `Bearer ${staffToken}`)
+      .field('title', 'Unauthorized Cheque')
+      .field('docType', 'CHEQUE')
+      .field('category', 'FINANCIAL')
+      .field('accessLevel', 'MANAGER_ADMIN')
+      .attach('file', Buffer.from('fake-png-bytes'), {
+        filename: 'cheque.png',
+        contentType: 'image/png',
+      });
+    expect(staffUpload.statusCode).toBe(403);
+
+    // ADMIN uploads a cheque scan (PNG) + supplier receipt (PDF)
+    const adminCheque = await request(app)
+      .post('/api/documents')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .field('title', 'BOC Cheque #884120')
+      .field('docType', 'CHEQUE')
+      .field('category', 'FINANCIAL')
+      .field('accessLevel', 'MANAGER_ADMIN')
+      .field('referenceNo', 'CHQ-884120')
+      .field('amount', '3840000')
+      .field('currency', 'LKR')
+      .attach('file', Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), {
+        filename: 'boc-cheque.png',
+        contentType: 'image/png',
+      });
+    expect(adminCheque.statusCode).toBe(201);
+    const uploadedDoc = adminCheque.body.documents.find((d) => d.referenceNo === 'CHQ-884120');
+    expect(uploadedDoc).toBeTruthy();
+    expect(uploadedDoc.filePath).toBeUndefined();
+    expect(uploadedDoc.storageKey).toBeUndefined();
+
+    // STAFF cannot list or view the MANAGER_ADMIN financial cheque
+    const staffList = await request(app)
+      .get('/api/documents')
+      .set('Authorization', `Bearer ${staffToken}`);
+    expect(staffList.statusCode).toBe(200);
+    expect(staffList.body.documents.some((d) => d.docId === uploadedDoc.docId)).toBe(false);
+
+    const staffView = await request(app)
+      .get(`/api/documents/${uploadedDoc.docId}/view`)
+      .set('Authorization', `Bearer ${staffToken}`);
+    expect(staffView.statusCode).toBe(403);
+
+    // ADMIN can retrieve signed/access URL and upload PDF receipt too
+    const adminView = await request(app)
+      .get(`/api/documents/${uploadedDoc.docId}/view`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(adminView.statusCode).toBe(200);
+    expect(adminView.body.accessUrl).toBeTruthy();
+
+    const pdfDocRes = await request(app)
+      .post('/api/documents')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .field('title', 'Packing Slip Receipt')
+      .field('docType', 'RECEIPT')
+      .field('category', 'TRADE')
+      .field('accessLevel', 'ALL_STAFF')
+      .attach('file', Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF'), {
+        filename: 'receipt.pdf',
+        contentType: 'application/pdf',
+      });
+    expect(pdfDocRes.statusCode).toBe(201);
+    expect(pdfDocRes.body.summary.totalAuthorized).toBeGreaterThanOrEqual(2);
+
+    // Update metadata (PUT CRUD) succeeds for ADMIN and fails with 403 for STAFF
+    const staffEdit = await request(app)
+      .put(`/api/documents/${uploadedDoc.docId}`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ title: 'Blocked Edit' });
+    expect(staffEdit.statusCode).toBe(403);
+
+    const adminEdit = await request(app)
+      .put(`/api/documents/${uploadedDoc.docId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ title: 'BOC Cheque #884120 Approved', notes: 'Verified by Admin' });
+    expect(adminEdit.statusCode).toBe(200);
+    expect(
+      adminEdit.body.documents.find((d) => d.docId === uploadedDoc.docId).title
+    ).toBe('BOC Cheque #884120 Approved');
+
+    // Cleanup test documents
+    const delRes = await request(app)
+      .delete(`/api/documents/${uploadedDoc.docId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(delRes.statusCode).toBe(200);
+  });
 });

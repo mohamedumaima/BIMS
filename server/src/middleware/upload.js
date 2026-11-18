@@ -8,7 +8,14 @@ const ALL_ALLOWED_MIME_TYPES = new Set([
   'image/jpeg',
   'image/png',
   'image/webp',
+  'image/gif',
   'application/pdf',
+  'text/csv',
+  'text/plain',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 ]);
 
 const IMAGE_MIME_TYPES = new Set([
@@ -36,7 +43,7 @@ function createMemoryUploader(allowedTypes, errorMessage) {
 
 export const uploadMemory = createMemoryUploader(
   ALL_ALLOWED_MIME_TYPES,
-  'Unsupported file type. Allowed: JPEG, PNG, WebP, PDF.'
+  'Unsupported file type. Allowed: PNG, JPG, WebP, GIF, PDF, CSV, TXT, DOC/DOCX, XLS/XLSX.'
 );
 
 export const uploadProductImage = createMemoryUploader(

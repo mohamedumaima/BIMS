@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { to: '/transactions', label: 'Shipments', roles: ['ADMIN', 'MANAGER', 'STAFF'] },
   { to: '/suppliers', label: 'Suppliers', roles: ['ADMIN', 'MANAGER', 'STAFF'] },
   { to: '/customers', label: 'Customers', roles: ['ADMIN', 'MANAGER', 'STAFF'] },
+  { to: '/documents', label: 'Documents', roles: ['ADMIN', 'MANAGER', 'STAFF'] },
   { to: '/reports', label: 'Reports', roles: ['ADMIN', 'MANAGER', 'STAFF'] },
   { to: '/users', label: 'Settings', roles: ['ADMIN', 'MANAGER', 'STAFF'] },
 ];
@@ -66,7 +67,7 @@ export default function Layout() {
                 key={item.to}
                 to={item.to}
                 className={({ isActive }) =>
-                  `px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                  `px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all ${
                     isActive
                       ? 'bg-white text-zinc-950 shadow-sm dark:bg-white dark:text-zinc-950'
                       : 'text-zinc-500 dark:text-zinc-300 hover:text-violet-500 dark:hover:text-white'

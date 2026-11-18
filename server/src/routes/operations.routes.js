@@ -12,6 +12,7 @@ import {
   chatWithAssistant,
   downloadTradeDocumentPdf,
   editCustomer,
+  editDocument,
   editProduct,
   editPurchaseOrder,
   editSalesInvoice,
@@ -23,12 +24,14 @@ import {
   getAssistantStatus,
   getCustomers,
   getDashboard,
+  getDocuments,
   getInventory,
   getPublicCatalog,
   getShipments,
   getSuppliers,
   getUsersSettings,
   removeCustomer,
+  removeDocument,
   removeProduct,
   removePurchaseOrder,
   removeSalesInvoice,
@@ -37,9 +40,11 @@ import {
   removeUserAccount,
   updateRolePermission,
   updateShipmentStatus,
+  uploadDocument,
+  viewDocumentAccess,
 } from '../controllers/operations.controller.js';
 import { authenticate, authorize } from '../middleware/auth.js';
-import { uploadProductImage } from '../middleware/upload.js';
+import { uploadMemory, uploadProductImage } from '../middleware/upload.js';
 
 const router = Router();
 
@@ -82,6 +87,24 @@ router.delete(
   removeShipment
 );
 router.get('/documents/pdf/:txnId/:docType', downloadTradeDocumentPdf);
+
+// Secure Document & Media Vault (Cloudinary + RBAC)
+router.get('/documents', authenticate, getDocuments);
+router.post('/documents', authenticate, uploadMemory.single('file'), uploadDocument);
+router.put(
+  '/documents/:docId',
+  authenticate,
+  authorize('ADMIN', 'MANAGER'),
+  uploadMemory.single('file'),
+  editDocument
+);
+router.get('/documents/:docId/view', authenticate, viewDocumentAccess);
+router.delete(
+  '/documents/:docId',
+  authenticate,
+  authorize('ADMIN', 'MANAGER'),
+  removeDocument
+);
 
 // Suppliers & Purchase Orders CRUD (LKR)
 router.get('/suppliers', authenticate, getSuppliers);

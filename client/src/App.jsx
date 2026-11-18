@@ -3,6 +3,7 @@ import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import CustomersPage from './pages/CustomersPage';
 import DashboardPage from './pages/DashboardPage';
+import DocumentsVaultPage from './pages/DocumentsVaultPage';
 import InventoryPage from './pages/InventoryPage';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
@@ -26,6 +27,7 @@ export default function App() {
             <Route path="/transactions" element={<ShipmentsPage />} />
             <Route path="/suppliers" element={<SuppliersPage />} />
             <Route path="/customers" element={<CustomersPage />} />
+            <Route path="/documents" element={<DocumentsVaultPage />} />
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/users" element={<SettingsUsersPage />} />
           </Route>

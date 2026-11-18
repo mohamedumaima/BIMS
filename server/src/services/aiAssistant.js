@@ -1,16 +1,19 @@
 import { randomUUID } from 'node:crypto';
 import { GoogleGenAI } from '@google/genai';
 import { env } from '../config/env.js';
-import { memoryStore } from './dataStore.js';
+import { getLiveRbacSnapshot, memoryStore } from './dataStore.js';
+import { canUserAccessDocument } from './prismaMappers.js';
 
 /**
  * Builds an RBAC-filtered snapshot of live platform data according to the user's role
  * and the RBAC module permissions table.
  */
-export function buildRbacDataContext(user) {
+export function buildRbacDataContext(user, snapshot = memoryStore) {
+  const store = snapshot || memoryStore;
   const role = user?.role || 'STAFF';
   const rolePerm =
-    memoryStore.permissions.find((p) => p.role === role) ||
+    store.permissions.find((p) => p.role === role) ||
+    store.permissions[2] ||
     memoryStore.permissions[2];
 
   const canViewFinance =
@@ -36,7 +39,7 @@ export function buildRbacDataContext(user) {
         canManageUsers: role === 'ADMIN',
       },
     },
-    inventorySpices: memoryStore.products.map((p) => ({
+    inventorySpices: store.products.map((p) => ({
       sku: p.sku,
       name: p.name,
       category: p.category,
@@ -47,7 +50,7 @@ export function buildRbacDataContext(user) {
       exportPriceUsdPerKg: `$${p.unitPrice}`,
       localPriceLkrPerKg: `Rs. ${Number(p.unitPriceLkr).toLocaleString()}`,
     })),
-    shipments: memoryStore.transactions.map((t) => ({
+    shipments: store.transactions.map((t) => ({
       txnNumber: t.txnNumber,
       title: t.title,
       type: t.type,
@@ -61,14 +64,14 @@ export function buildRbacDataContext(user) {
           ? `Rs. ${Number(t.totalValue).toLocaleString()}`
           : `$${Number(t.totalValue).toLocaleString()} USD`,
     })),
-    sriLankanSuppliersLkr: memoryStore.suppliers.map((s) => ({
+    sriLankanSuppliersLkr: store.suppliers.map((s) => ({
       name: s.name,
       region: s.country,
       onTimeRate: `${s.onTimeRate}%`,
       paymentTerms: s.paymentTerms,
       outstandingBalanceLkr: `Rs. ${Number(s.balance).toLocaleString()}`,
     })),
-    purchaseOrdersLkr: memoryStore.purchaseOrders.map((po) => ({
+    purchaseOrdersLkr: store.purchaseOrders.map((po) => ({
       poNumber: po.poNumber,
       supplier: po.supplierName,
       spice: po.productName,
@@ -76,7 +79,7 @@ export function buildRbacDataContext(user) {
       totalLkr: `Rs. ${Number(po.totalAmount).toLocaleString()}`,
       status: po.status,
     })),
-    internationalBuyersUsd: memoryStore.customers
+    internationalBuyersUsd: store.customers
       .filter((c) => c.marketType === 'INTERNATIONAL')
       .map((c) => ({
         name: c.name,
@@ -85,7 +88,7 @@ export function buildRbacDataContext(user) {
         balanceUsd: `$${Number(c.balance).toLocaleString()}`,
         utilization: `${c.utilization}%`,
       })),
-    localBuyersLkr: memoryStore.customers
+    localBuyersLkr: store.customers
       .filter((c) => c.marketType === 'LOCAL')
       .map((c) => ({
         name: c.name,
@@ -93,6 +96,22 @@ export function buildRbacDataContext(user) {
         creditLimitLkr: `Rs. ${Number(c.creditLimit).toLocaleString()}`,
         balanceLkr: `Rs. ${Number(c.balance).toLocaleString()}`,
         utilization: `${c.utilization}%`,
+      })),
+    authorizedDocuments: (store.documents || [])
+      .filter((doc) => canUserAccessDocument(user, doc, store.permissions))
+      .map((doc) => ({
+        docId: doc.docId,
+        title: doc.title,
+        docType: doc.docType,
+        category: doc.category,
+        accessLevel: doc.accessLevel,
+        referenceNo: doc.referenceNo || 'N/A',
+        amount:
+          doc.amount != null
+            ? doc.currency === 'LKR'
+              ? `Rs. ${Number(doc.amount).toLocaleString()}`
+              : `$${Number(doc.amount).toLocaleString()}`
+            : 'N/A',
       })),
     canViewFinance,
     canEditTradeDocs,
@@ -111,7 +130,7 @@ export function buildRbacDataContext(user) {
   }
 
   if (role === 'ADMIN') {
-    context.systemUsers = memoryStore.users.map((u) => ({
+    context.systemUsers = store.users.map((u) => ({
       name: u.name,
       email: u.email,
       role: u.role,
@@ -190,6 +209,27 @@ function generateLocalRbacFallbackReply(prompt, context) {
   if (context.canViewFinance && (q.includes('revenue') || q.includes('kpi') || q.includes('report') || q.includes('margin') || q.includes('trend'))) {
     const f = context.executiveFinance;
     return `Executive Financial Summary (${role} Access):\n• International Export Revenue: ${f.internationalExportRevenueUsd}\n• Local Domestic Revenue: ${f.domesticLocalRevenueLkr}\n• Operating Expenses: ${f.operatingExpensesUsd} (Local: ${f.domesticExpensesLkr})\n• FIFO Inventory Valuation: ${f.fifoInventoryValuationUsd} (${f.fifoInventoryValuationLkr})\n• Inventory Turnover Ratio: ${f.inventoryTurnoverRatio}`;
+  }
+
+  if (
+    q.includes('document') ||
+    q.includes('cheque') ||
+    q.includes('receipt') ||
+    q.includes('bill') ||
+    q.includes('vault')
+  ) {
+    const docs = context.authorizedDocuments || [];
+    if (docs.length === 0) {
+      return `Authorized Document Vault (${role} Role): No uploaded documents match your current role permissions yet. Authorized users can upload images or PDFs under the Documents Vault tab.`;
+    }
+    const docList = docs
+      .slice(0, 8)
+      .map(
+        (d) =>
+          `• [${d.docType}] ${d.title} (Ref: ${d.referenceNo} | ${d.amount} | ${d.accessLevel})`
+      )
+      .join('\n');
+    return `Authorized Document Vault (${docs.length} accessible record(s) for ${role}):\n${docList}`;
   }
 
   return `Hello ${context.currentUser.name} (${role})! I have live access to your authorized Ceylon Spices BIMS data:\n• ${context.inventorySpices.length} Sri Lankan spices (priced in USD $ for export & LKR Rs. for local)\n• ${context.internationalBuyersUsd.length} International Buyers (USD $) & ${context.localBuyersLkr.length} Local Buyers (LKR Rs.)\n• ${context.sriLankanSuppliersLkr.length} Sri Lankan Suppliers & ${context.purchaseOrdersLkr.length} Purchase Orders (LKR Rs.)\n• ${context.shipments.length} Active Import/Export Shipments\n\nAsk me about low-stock spices, supplier PO approvals, international vs. local buyer balances, or trade shipments!`;
@@ -280,6 +320,9 @@ function formatCompactRbacContext(context) {
           `${b.name}|${b.region}|Bal:${b.balanceLkr}|Limit:${b.creditLimitLkr}|Util:${b.utilization}`
       )
       .join(' ; ')}`,
+    `AUTHORIZED_DOCS: ${(context.authorizedDocuments || [])
+      .map((d) => `${d.docType}|${d.title}|Ref:${d.referenceNo}|${d.amount}|${d.accessLevel}`)
+      .join(' ; ')}`,
   ];
 
   if (context.executiveFinance) {
@@ -316,7 +359,8 @@ function saveSessionHistory(sessionId, scopeKey, history) {
 }
 
 export async function askBimsAiAssistant({ user, message, previousInteractionId }) {
-  const context = buildRbacDataContext(user);
+  const snapshot = await getLiveRbacSnapshot();
+  const context = buildRbacDataContext(user, snapshot);
   const apiKey = (env.geminiApiKey || process.env.GEMINI_API_KEY || '').trim();
   const model = env.geminiModel;
 

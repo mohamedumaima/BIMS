@@ -402,13 +402,36 @@ export default function SettingsUsersPage() {
             </button>
           </div>
 
-          <div className="bims-card p-4 flex items-center gap-2.5 text-xs">
-            <Database className="w-4 h-4 text-zinc-400 shrink-0" />
-            <div>
-              <p className="font-semibold">Database Authorization</p>
-              <p className="text-zinc-400">
-                Status: <span className="text-emerald-400 font-medium">Encrypted &amp; Active</span>
-              </p>
+          <div className="bims-card p-4 space-y-2.5 text-xs">
+            <div className="flex items-center gap-2.5">
+              <Database className="w-4 h-4 text-zinc-400 shrink-0" />
+              <div className="min-w-0">
+                <p className="font-semibold">Cloud Database &amp; Media Storage</p>
+                <p className="text-zinc-400">
+                  DB:{' '}
+                  <span
+                    className={
+                      bundle?.infrastructure?.databaseConnected
+                        ? 'text-emerald-400 font-medium'
+                        : 'text-amber-400 font-medium'
+                    }
+                  >
+                    {bundle?.infrastructure?.databaseProvider || 'Checking...'}
+                  </span>
+                </p>
+                <p className="text-zinc-400">
+                  Media:{' '}
+                  <span
+                    className={
+                      bundle?.infrastructure?.cloudinaryConfigured
+                        ? 'text-emerald-400 font-medium'
+                        : 'text-amber-400 font-medium'
+                    }
+                  >
+                    {bundle?.infrastructure?.mediaProvider || 'Checking...'}
+                  </span>
+                </p>
+              </div>
             </div>
           </div>
         </div>

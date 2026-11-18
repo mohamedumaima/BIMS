@@ -3,6 +3,7 @@ import { askBimsAiAssistant, buildRbacDataContext } from '../services/aiAssistan
 import {
   advanceShipmentStatus,
   createCustomerRecord,
+  createDocumentRecord,
   createProductSku,
   createPurchaseOrderRecord,
   createSalesInvoiceRecord,
@@ -10,6 +11,7 @@ import {
   createSystemUser,
   createTradeDeclaration,
   deleteCustomerRecord,
+  deleteDocumentRecord,
   deleteProductSku,
   deletePurchaseOrderRecord,
   deleteSalesInvoiceRecord,
@@ -17,8 +19,11 @@ import {
   deleteSystemUser,
   deleteTradeDeclaration,
   findTransactionById,
+  getAuthorizedDocumentAccess,
   getCustomersBundle,
+  getDocumentsBundle,
   getInventoryBundle,
+  getLiveRbacSnapshot,
   getReportsAndDashboardSummary,
   getShipmentsBundle,
   getSuppliersBundle,
@@ -26,6 +31,7 @@ import {
   recordInventoryMovement,
   toggleRolePermission,
   updateCustomerRecord,
+  updateDocumentRecord,
   updateProductSku,
   updatePurchaseOrderRecord,
   updatePurchaseOrderStatus,
@@ -34,7 +40,10 @@ import {
   updateSystemUser,
   updateTradeDeclaration,
 } from '../services/dataStore.js';
-import { storeUploadedProductImage } from '../utils/fileStorage.js';
+import {
+  storeProtectedDocumentFile,
+  storeUploadedProductImage,
+} from '../utils/fileStorage.js';
 import {
   streamAnalyticsReportPdf,
   streamTradeDocumentPdf,
@@ -62,10 +71,13 @@ export async function getInventory(_req, res) {
 
 export async function addProduct(req, res) {
   const uploadedImageUrl = await storeUploadedProductImage(req.file);
-  const data = await createProductSku({
-    ...req.body,
-    ...(uploadedImageUrl ? { imageUrl: uploadedImageUrl } : {}),
-  });
+  const data = await createProductSku(
+    {
+      ...req.body,
+      ...(uploadedImageUrl ? { imageUrl: uploadedImageUrl } : {}),
+    },
+    req.user?.userId
+  );
   res.status(201).json(data);
 }
 
@@ -84,7 +96,10 @@ export async function removeProduct(req, res) {
 }
 
 export async function addInventoryMovement(req, res) {
-  const data = await recordInventoryMovement(req.body);
+  const data = await recordInventoryMovement({
+    ...req.body,
+    userId: req.user?.userId,
+  });
   res.status(201).json(data);
 }
 
@@ -94,7 +109,7 @@ export async function getShipments(_req, res) {
 }
 
 export async function addShipment(req, res) {
-  const data = await createTradeDeclaration(req.body);
+  const data = await createTradeDeclaration(req.body, req.user?.userId);
   res.status(201).json(data);
 }
 
@@ -115,8 +130,62 @@ export async function updateShipmentStatus(req, res) {
 
 export async function downloadTradeDocumentPdf(req, res) {
   const { txnId, docType } = req.params;
-  const txn = findTransactionById(txnId);
+  const txn = await findTransactionById(txnId);
   streamTradeDocumentPdf(res, txn, (docType || 'COMMERCIAL_INVOICE').toUpperCase());
+}
+
+export async function getDocuments(req, res) {
+  const bundle = await getDocumentsBundle(req.user);
+  res.json(bundle);
+}
+
+export async function uploadDocument(req, res) {
+  if (!req.file) {
+    return res.status(400).json({ error: 'Document file is required' });
+  }
+  const privateAccess = req.body.accessLevel !== 'ALL_STAFF';
+  const stored = await storeProtectedDocumentFile(req.file, { privateAccess });
+  const bundle = await createDocumentRecord({
+    user: req.user,
+    fileMeta: {
+      originalName: req.file.originalname,
+      ...stored,
+    },
+    payload: req.body,
+  });
+  return res.status(201).json(bundle);
+}
+
+export async function editDocument(req, res) {
+  let fileMeta = null;
+  if (req.file) {
+    const privateAccess = req.body.accessLevel !== 'ALL_STAFF';
+    const stored = await storeProtectedDocumentFile(req.file, { privateAccess });
+    fileMeta = {
+      originalName: req.file.originalname,
+      ...stored,
+    };
+  }
+  const bundle = await updateDocumentRecord({
+    user: req.user,
+    docId: req.params.docId,
+    fileMeta,
+    payload: req.body,
+  });
+  return res.json(bundle);
+}
+
+export async function viewDocumentAccess(req, res) {
+  const download = req.query.download === 'true' || req.query.download === '1';
+  const result = await getAuthorizedDocumentAccess(req.user, req.params.docId, {
+    download,
+  });
+  res.json(result);
+}
+
+export async function removeDocument(req, res) {
+  const bundle = await deleteDocumentRecord(req.user, req.params.docId);
+  res.json(bundle);
 }
 
 export async function getSuppliers(_req, res) {
@@ -140,7 +209,7 @@ export async function removeSupplier(req, res) {
 }
 
 export async function addPurchaseOrder(req, res) {
-  const data = await createPurchaseOrderRecord(req.body);
+  const data = await createPurchaseOrderRecord(req.body, req.user?.userId);
   res.status(201).json(data);
 }
 
@@ -180,7 +249,7 @@ export async function removeCustomer(req, res) {
 }
 
 export async function addSalesInvoice(req, res) {
-  const data = await createSalesInvoiceRecord(req.body);
+  const data = await createSalesInvoiceRecord(req.body, req.user?.userId);
   res.status(201).json(data);
 }
 
@@ -225,7 +294,8 @@ export async function updateRolePermission(req, res) {
 }
 
 export async function getAssistantStatus(req, res) {
-  const context = buildRbacDataContext(req.user);
+  const snapshot = await getLiveRbacSnapshot();
+  const context = buildRbacDataContext(req.user, snapshot);
   const configured = Boolean((env.geminiApiKey || process.env.GEMINI_API_KEY || '').trim());
   res.json({
     geminiConfigured: configured,
