@@ -16,7 +16,7 @@ import {
   VioletActionCard,
 } from '../components/BentoWidgets';
 import InlineAssistantBar from '../components/InlineAssistantBar';
-import { api } from '../services/api';
+import { api, downloadApiFile } from '../services/api';
 
 const EMPTY_SUPPLIER = {
   name: 'Nuwara Eliya Spice Collective',
@@ -417,7 +417,9 @@ export default function SuppliersPage() {
               placeholder="Ask AI about LKR suppliers or pending POs..."
               defaultPrompt="Which Sri Lankan suppliers have pending LKR PO approvals?"
               actionLabel="Report PDF"
-              onActionClick={() => window.open('/api/reports/export/pdf', '_blank')}
+              onActionClick={() =>
+                downloadApiFile('/reports/export/pdf', 'ceylon-spices-bims-executive-report.pdf')
+              }
               showInlineReply={false}
               onReply={(reply, query) => setAssistantNote({ reply, query })}
             />

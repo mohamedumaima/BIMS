@@ -27,3 +27,26 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+export async function downloadApiFile(endpoint, fallbackFilename = 'bims-document') {
+  try {
+    const cleanPath = endpoint.startsWith('/api/') ? endpoint.slice(4) : endpoint;
+    const response = await api.get(cleanPath, { responseType: 'blob' });
+    const contentType = response.headers?.['content-type'] || 'application/octet-stream';
+    const disposition = response.headers?.['content-disposition'] || '';
+    const match = disposition.match(/filename="?([^";]+)"?/i);
+    const filename = match?.[1] || fallbackFilename;
+
+    const blob = new Blob([response.data], { type: contentType });
+    const blobUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+  } catch {
+    // Fallback if blob download fails
+  }
+}

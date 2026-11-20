@@ -59,8 +59,8 @@ export async function getPublicCatalog(_req, res) {
   });
 }
 
-export async function getDashboard(_req, res) {
-  const data = await getReportsAndDashboardSummary();
+export async function getDashboard(req, res) {
+  const data = await getReportsAndDashboardSummary(req.user);
   res.json(data);
 }
 
@@ -285,7 +285,7 @@ export async function removeUserAccount(req, res) {
 }
 
 export async function updateRolePermission(req, res) {
-  const data = toggleRolePermission({
+  const data = await toggleRolePermission({
     role: req.body.role,
     field: req.body.field,
     actorName: req.user?.name,
@@ -318,17 +318,24 @@ export async function chatWithAssistant(req, res) {
   return res.json(result);
 }
 
-export async function exportReportPdf(_req, res) {
-  const summary = await getReportsAndDashboardSummary();
+export async function exportReportPdf(req, res) {
+  const summary = await getReportsAndDashboardSummary(req.user);
   streamAnalyticsReportPdf(res, summary);
 }
 
-export async function exportReportCsv(_req, res) {
-  const summary = await getReportsAndDashboardSummary();
+export async function exportReportCsv(req, res) {
+  const summary = await getReportsAndDashboardSummary(req.user);
+  const canViewFinance = summary.canViewFinance !== false;
   const rows = [
     ['Section', 'Item / Metric', 'Market / Category', 'Currency', 'Value / Quantity', 'Status / Share'],
-    ['Financial KPI', 'International Export Revenue', 'International', 'USD', `$${summary.kpis.revenue.toLocaleString()}`, 'Active'],
-    ['Financial KPI', 'Domestic Spice Revenue', 'Sri Lanka Local', 'LKR', `Rs. ${summary.kpis.revenueLkr.toLocaleString()}`, 'Active'],
+    ...(canViewFinance
+      ? [
+          ['Financial KPI', 'International Export Revenue', 'International', 'USD', `$${summary.kpis.revenue.toLocaleString()}`, 'Active'],
+          ['Financial KPI', 'Domestic Spice Revenue', 'Sri Lanka Local', 'LKR', `Rs. ${summary.kpis.revenueLkr.toLocaleString()}`, 'Active'],
+        ]
+      : [
+          ['Financial KPI', 'Executive Revenue & Margin', 'Restricted', 'N/A', 'Restricted (Manager/Admin Only)', 'RBAC Protected'],
+        ]),
     ['Financial KPI', 'FIFO Valuation (USD)', 'Global', 'USD', `$${summary.kpis.fifoValuation.toLocaleString()}`, '94% Optimal'],
     ['Financial KPI', 'FIFO Valuation (LKR)', 'Local', 'LKR', `Rs. ${summary.kpis.fifoValuationLkr.toLocaleString()}`, '94% Optimal'],
     ...summary.exportByCountry.map((c) => [

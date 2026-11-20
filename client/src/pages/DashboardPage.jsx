@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
+import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { ArrowDownRight, ArrowUpRight } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, Lock } from 'lucide-react';
 import {
   CardHeader,
   DotMatrixPair,
@@ -9,10 +10,11 @@ import {
   RadialTickGauge,
   VioletActionCard,
 } from '../components/BentoWidgets';
-import { api } from '../services/api';
+import { api, downloadApiFile } from '../services/api';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
+  const { user } = useSelector((state) => state.auth);
   const [summary, setSummary] = useState(null);
 
   useEffect(() => {
@@ -23,6 +25,12 @@ export default function DashboardPage() {
   }, []);
 
   const products = summary?.products || [];
+  const isFinanceRestricted =
+    summary?.canViewFinance !== undefined
+      ? !summary.canViewFinance
+      : user?.role === 'STAFF';
+  const revenueUsd = summary?.kpis?.revenue || 485000;
+  const revenueLkr = summary?.kpis?.revenueLkr || 68500000;
 
   return (
     <div className="space-y-6">
@@ -34,22 +42,38 @@ export default function DashboardPage() {
               title="Executive Financial KPIs"
               onAction={() => navigate('/reports')}
             />
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bims-subcard p-3.5">
-                <div className="flex items-center justify-between text-xs text-zinc-400">
-                  <span>Export (USD)</span>
-                  <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400" />
+            {isFinanceRestricted ? (
+              <div className="bims-subcard p-3.5 text-xs text-amber-400 flex items-start gap-2.5">
+                <Lock className="w-4 h-4 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold">Finance Restricted ({user?.role || 'STAFF'} Role)</p>
+                  <p className="text-zinc-400 mt-0.5">
+                    Executive revenue &amp; margin totals require Manager or Administrator access.
+                  </p>
                 </div>
-                <p className="text-2xl font-bold text-emerald-400 mt-1">$485K</p>
               </div>
-              <div className="bims-subcard p-3.5">
-                <div className="flex items-center justify-between text-xs text-zinc-400">
-                  <span>Local (LKR)</span>
-                  <ArrowDownRight className="w-3.5 h-3.5 text-amber-400" />
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bims-subcard p-3.5">
+                  <div className="flex items-center justify-between text-xs text-zinc-400">
+                    <span>Export (USD)</span>
+                    <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400" />
+                  </div>
+                  <p className="text-2xl font-bold text-emerald-400 mt-1">
+                    ${Math.round(revenueUsd / 1000)}K
+                  </p>
                 </div>
-                <p className="text-2xl font-bold text-amber-400 mt-1">Rs. 68.5M</p>
+                <div className="bims-subcard p-3.5">
+                  <div className="flex items-center justify-between text-xs text-zinc-400">
+                    <span>Local (LKR)</span>
+                    <ArrowDownRight className="w-3.5 h-3.5 text-amber-400" />
+                  </div>
+                  <p className="text-2xl font-bold text-amber-400 mt-1">
+                    Rs. {(revenueLkr / 1000000).toFixed(1)}M
+                  </p>
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="pt-2 space-y-2.5">
               {products.slice(0, 4).map((item) => (
@@ -130,22 +154,33 @@ export default function DashboardPage() {
               <PdfDocCard
                 title="Commercial Invoice"
                 badge="PDF"
-                onClick={() => window.open('/api/documents/pdf/1/COMMERCIAL_INVOICE', '_blank')}
+                onClick={() =>
+                  downloadApiFile('/documents/pdf/1/COMMERCIAL_INVOICE', 'commercial-invoice.pdf')
+                }
               />
               <PdfDocCard
                 title="Packing List"
                 badge="PDF"
-                onClick={() => window.open('/api/documents/pdf/1/PACKING_LIST', '_blank')}
+                onClick={() =>
+                  downloadApiFile('/documents/pdf/1/PACKING_LIST', 'packing-list.pdf')
+                }
               />
               <PdfDocCard
                 title="Bill of Lading"
                 badge="PDF"
-                onClick={() => window.open('/api/documents/pdf/1/BILL_OF_LADING', '_blank')}
+                onClick={() =>
+                  downloadApiFile('/documents/pdf/1/BILL_OF_LADING', 'bill-of-lading.pdf')
+                }
               />
               <PdfDocCard
                 title="Origin Cert"
                 badge="PDF"
-                onClick={() => window.open('/api/documents/pdf/1/CERTIFICATE_OF_ORIGIN', '_blank')}
+                onClick={() =>
+                  downloadApiFile(
+                    '/documents/pdf/1/CERTIFICATE_OF_ORIGIN',
+                    'certificate-of-origin.pdf'
+                  )
+                }
               />
             </div>
           </div>
@@ -172,8 +207,10 @@ export default function DashboardPage() {
             title={'Automated\nTrade PDF\nSuite'}
             buttonLabel="Download Trade Bundle ↓"
             secondaryButtonLabel="Export Executive CSV"
-            onPrimaryClick={() => window.open('/api/documents/pdf/1/BUNDLE', '_blank')}
-            onSecondaryClick={() => window.open('/api/reports/export/csv', '_blank')}
+            onPrimaryClick={() => downloadApiFile('/documents/pdf/1/BUNDLE', 'trade-bundle.pdf')}
+            onSecondaryClick={() =>
+              downloadApiFile('/reports/export/csv', 'ceylon-spices-bims-report.csv')
+            }
           />
         </div>
       </div>

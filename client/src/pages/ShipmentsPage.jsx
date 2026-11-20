@@ -11,7 +11,7 @@ import {
   VioletActionCard,
 } from '../components/BentoWidgets';
 import InlineAssistantBar from '../components/InlineAssistantBar';
-import { api } from '../services/api';
+import { api, downloadApiFile } from '../services/api';
 
 const EMPTY_DECLARATION = {
   title: 'Ceylon Cloves to France',
@@ -99,7 +99,10 @@ export default function ShipmentsPage() {
   };
 
   const handleDownloadPdf = (docType) => {
-    window.open(`/api/documents/pdf/${selectedTxnId}/${docType}`, '_blank');
+    downloadApiFile(
+      `/documents/pdf/${selectedTxnId}/${docType}`,
+      `${docType.toLowerCase()}-txn-${selectedTxnId}.pdf`
+    );
   };
 
   const transactions = bundle?.transactions || [];

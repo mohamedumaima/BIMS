@@ -19,7 +19,7 @@ import {
   VioletActionCard,
 } from '../components/BentoWidgets';
 import InlineAssistantBar from '../components/InlineAssistantBar';
-import { api } from '../services/api';
+import { api, downloadApiFile } from '../services/api';
 
 const EMPTY_SKU = {
   sku: 'SKU-GIN-08',
@@ -468,7 +468,9 @@ export default function InventoryPage() {
               placeholder="Ask AI about stock levels or export PDF..."
               defaultPrompt="Show low-stock Sri Lankan spices & prices in USD and LKR"
               actionLabel="PDF"
-              onActionClick={() => window.open('/api/reports/export/pdf', '_blank')}
+              onActionClick={() =>
+                downloadApiFile('/reports/export/pdf', 'ceylon-spices-bims-executive-report.pdf')
+              }
             />
           </div>
         </div>

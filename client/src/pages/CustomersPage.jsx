@@ -18,7 +18,7 @@ import {
   VioletActionCard,
 } from '../components/BentoWidgets';
 import InlineAssistantBar from '../components/InlineAssistantBar';
-import { api } from '../services/api';
+import { api, downloadApiFile } from '../services/api';
 
 const EMPTY_CUSTOMER = {
   name: 'Tokyo Botanicals Co.',
@@ -496,18 +496,25 @@ export default function CustomersPage() {
                         badge="INV-2604"
                         badgeColor="orange"
                         onClick={() =>
-                          window.open('/api/documents/pdf/1/COMMERCIAL_INVOICE', '_blank')
+                          downloadApiFile(
+                            '/documents/pdf/1/COMMERCIAL_INVOICE',
+                            'commercial-invoice.pdf'
+                          )
                         }
                       />
                       <PdfDocCard
                         badge="PL-2604"
                         badgeColor="violet"
-                        onClick={() => window.open('/api/documents/pdf/1/PACKING_LIST', '_blank')}
+                        onClick={() =>
+                          downloadApiFile('/documents/pdf/1/PACKING_LIST', 'packing-list.pdf')
+                        }
                       />
                       <PdfDocCard
                         badge="BL-2604"
                         badgeColor="violet"
-                        onClick={() => window.open('/api/documents/pdf/1/BILL_OF_LADING', '_blank')}
+                        onClick={() =>
+                          downloadApiFile('/documents/pdf/1/BILL_OF_LADING', 'bill-of-lading.pdf')
+                        }
                       />
                     </div>
                   </div>
@@ -520,7 +527,7 @@ export default function CustomersPage() {
               defaultPrompt="Compare International Buyers (USD) vs Local Buyers (LKR)"
               actionLabel="Invoice PDF"
               onActionClick={() =>
-                window.open('/api/documents/pdf/1/COMMERCIAL_INVOICE', '_blank')
+                downloadApiFile('/documents/pdf/1/COMMERCIAL_INVOICE', 'commercial-invoice.pdf')
               }
               showInlineReply={false}
               onReply={(reply) => setChatReply(reply)}
@@ -710,6 +717,37 @@ export default function CustomersPage() {
                     }
                     className="w-full rounded-xl bims-input px-3.5 py-2.5"
                   />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block mb-1 font-medium">Order Stage</label>
+                  <select
+                    aria-label="Sales Order Stage"
+                    value={invoiceForm.status}
+                    onChange={(e) => setInvoiceForm({ ...invoiceForm, status: e.target.value })}
+                    className="w-full rounded-xl bims-input px-3.5 py-2.5"
+                  >
+                    <option value="QUOTATION" className="bg-zinc-900 text-white">Quotation</option>
+                    <option value="CONFIRMED" className="bg-zinc-900 text-white">Confirmed</option>
+                    <option value="INVOICED" className="bg-zinc-900 text-white">Invoiced</option>
+                    <option value="FULFILLED" className="bg-zinc-900 text-white">Fulfilled</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block mb-1 font-medium">Payment Status</label>
+                  <select
+                    aria-label="Sales Invoice Payment Status"
+                    value={invoiceForm.paymentStatus}
+                    onChange={(e) =>
+                      setInvoiceForm({ ...invoiceForm, paymentStatus: e.target.value })
+                    }
+                    className="w-full rounded-xl bims-input px-3.5 py-2.5"
+                  >
+                    <option value="UNPAID" className="bg-zinc-900 text-white">Unpaid</option>
+                    <option value="PARTIAL" className="bg-zinc-900 text-white">Partial</option>
+                    <option value="PAID" className="bg-zinc-900 text-white">Paid</option>
+                  </select>
                 </div>
               </div>
               <button

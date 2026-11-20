@@ -215,10 +215,17 @@ export function streamAnalyticsReportPdf(res, summary) {
   doc.font('Helvetica-Bold').fontSize(11).fillColor('#18181B').text('1. Executive Financial KPIs', 40, y);
   y += 20;
 
+  const canViewFinance = summary.canViewFinance !== false;
   const kpis = [
-    ['Total Revenue', `$${(summary.kpis.revenue / 1000).toFixed(0)}K`],
-    ['Total Expenses', `$${(summary.kpis.expenses / 1000).toFixed(0)}K`],
-    ['Net Profit Margin', `$${((summary.kpis.revenue - summary.kpis.expenses) / 1000).toFixed(0)}K`],
+    ...(canViewFinance
+      ? [
+          ['Total Revenue', `$${(summary.kpis.revenue / 1000).toFixed(0)}K`],
+          ['Total Expenses', `$${(summary.kpis.expenses / 1000).toFixed(0)}K`],
+          ['Net Profit Margin', `$${((summary.kpis.revenue - summary.kpis.expenses) / 1000).toFixed(0)}K`],
+        ]
+      : [
+          ['Executive Financials', 'Restricted (Manager / Admin Access Required)'],
+        ]),
     ['FIFO Inventory Valuation', `$${(summary.kpis.fifoValuation / 1000).toFixed(0)}K`],
     ['Inventory Turnover Ratio', `${summary.kpis.turnoverRatio}%`],
     ['Active Shipments', String(summary.kpis.activeShipments)],

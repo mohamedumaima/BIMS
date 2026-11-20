@@ -15,7 +15,7 @@ import {
   VioletActionCard,
 } from '../components/BentoWidgets';
 import InlineAssistantBar from '../components/InlineAssistantBar';
-import { api } from '../services/api';
+import { api, downloadApiFile } from '../services/api';
 
 function CategoryMatrix() {
   const dots = 49;
@@ -67,7 +67,6 @@ function CategoryMatrix() {
 
 export default function ReportsPage() {
   const { user } = useSelector((state) => state.auth);
-  const isStaff = user?.role === 'STAFF';
   const [summary, setSummary] = useState(null);
   const [reportReply, setReportReply] = useState('');
 
@@ -78,6 +77,10 @@ export default function ReportsPage() {
       .catch(() => {});
   }, []);
 
+  const isStaff =
+    summary?.canViewFinance !== undefined
+      ? !summary.canViewFinance
+      : user?.role === 'STAFF';
   const revenueUsd = summary?.kpis?.revenue || 485000;
   const revenueLkr = summary?.kpis?.revenueLkr || 68500000;
   const expensesUsd = summary?.kpis?.expenses || 210000;
@@ -220,17 +223,25 @@ export default function ReportsPage() {
                       <PdfDocCard
                         badge="PDF"
                         onClick={() =>
-                          window.open('/api/documents/pdf/1/COMMERCIAL_INVOICE', '_blank')
+                          downloadApiFile(
+                            '/documents/pdf/1/COMMERCIAL_INVOICE',
+                            'commercial-invoice.pdf'
+                          )
                         }
                       />
                       <PdfDocCard
                         badge="PDF"
-                        onClick={() => window.open('/api/documents/pdf/1/PACKING_LIST', '_blank')}
+                        onClick={() =>
+                          downloadApiFile('/documents/pdf/1/PACKING_LIST', 'packing-list.pdf')
+                        }
                       />
                       <PdfDocCard
                         badge="PDF"
                         onClick={() =>
-                          window.open('/api/documents/pdf/1/CERTIFICATE_OF_ORIGIN', '_blank')
+                          downloadApiFile(
+                            '/documents/pdf/1/CERTIFICATE_OF_ORIGIN',
+                            'certificate-of-origin.pdf'
+                          )
                         }
                       />
                     </div>
@@ -243,7 +254,9 @@ export default function ReportsPage() {
               placeholder="Ask AI about export trends or download PDF..."
               defaultPrompt="Show executive revenue and margin KPIs"
               actionLabel="PDF"
-              onActionClick={() => window.open('/api/reports/export/pdf', '_blank')}
+              onActionClick={() =>
+                downloadApiFile('/reports/export/pdf', 'ceylon-spices-bims-executive-report.pdf')
+              }
               showInlineReply={false}
               onReply={(reply) => setReportReply(reply)}
             />
@@ -266,8 +279,12 @@ export default function ReportsPage() {
             title={'Export\nCustom\nReport'}
             buttonLabel="Export CSV"
             secondaryButtonLabel="Export PDF"
-            onPrimaryClick={() => window.open('/api/reports/export/csv', '_blank')}
-            onSecondaryClick={() => window.open('/api/reports/export/pdf', '_blank')}
+            onPrimaryClick={() =>
+              downloadApiFile('/reports/export/csv', 'ceylon-spices-bims-report.csv')
+            }
+            onSecondaryClick={() =>
+              downloadApiFile('/reports/export/pdf', 'ceylon-spices-bims-executive-report.pdf')
+            }
           />
         </div>
       </div>

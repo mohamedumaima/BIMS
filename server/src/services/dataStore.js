@@ -49,6 +49,24 @@ function buildError(message, statusCode = 400) {
   return err;
 }
 
+function requireNonEmptyString(value, fieldLabel) {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw buildError(`${fieldLabel} is required`, 400);
+  }
+  return value.trim();
+}
+
+function parseNonNegativeNumber(value, fallback, fieldLabel = 'Numeric value') {
+  if (value === undefined || value === null || value === '') {
+    return fallback;
+  }
+  const num = Number(value);
+  if (!Number.isFinite(num) || num < 0) {
+    throw buildError(`${fieldLabel} must be a non-negative number`, 400);
+  }
+  return num;
+}
+
 async function ensurePostgresSeeded(prisma) {
   if (seededUrlSignature === env.databaseUrl) return;
   if (!seedInFlight) {
@@ -309,20 +327,30 @@ async function appendSecurityLog(text, active = true) {
   });
 }
 
-export async function createSystemUser({ name, email, password, role }) {
-  const normalizedEmail = email.trim().toLowerCase();
+export async function createSystemUser(payload = {}) {
+  const { name, email, password, role } = payload;
+  const cleanName = requireNonEmptyString(name, 'User name');
+  const cleanEmail = requireNonEmptyString(email, 'Email address').toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+    throw buildError('Invalid email address format', 400);
+  }
+  if (password !== undefined && password !== '' && String(password).length < 6) {
+    throw buildError('Password must be at least 6 characters', 400);
+  }
+
+  const normalizedEmail = cleanEmail;
   const existing = await findUserByEmail(normalizedEmail);
   if (existing) {
     throw buildError('A user with this email already exists', 409);
   }
 
   const passwordHash = await bcrypt.hash(password || 'Password@123', 10);
-  const assignedRole = role || 'STAFF';
+  const assignedRole = ['ADMIN', 'MANAGER', 'STAFF'].includes(role) ? role : 'STAFF';
 
   if (await isPostgresConnected()) {
     const created = await getPrisma().user.create({
       data: {
-        name: name.trim(),
+        name: cleanName,
         email: normalizedEmail,
         role: assignedRole,
         passwordHash,
@@ -340,7 +368,7 @@ export async function createSystemUser({ name, email, password, role }) {
 
   const newUser = {
     userId: nextId,
-    name: name.trim(),
+    name: cleanName,
     email: normalizedEmail,
     role: assignedRole,
     passwordHash,
@@ -418,6 +446,23 @@ export async function deleteSystemUser(userId, requestingUserId) {
   return listUsersAndSecurity();
 }
 
+function buildPermissionLabelUpdate(role, field, nextVal) {
+  if (field === 'inventoryEnabled') {
+    return { inventory: nextVal ? 'Full Access' : 'Restricted' };
+  }
+  if (field === 'tradeDocsEnabled') {
+    return {
+      tradeDocs: nextVal ? (role === 'STAFF' ? 'Read Only' : 'Edit & View') : 'Restricted',
+    };
+  }
+  if (field === 'financeEnabled') {
+    return {
+      finance: nextVal ? (role === 'ADMIN' ? 'Full Access' : 'Read Only') : 'Restricted',
+    };
+  }
+  return {};
+}
+
 export async function toggleRolePermission({ role, field, actorName }) {
   const allowedFields = new Set([
     'inventoryEnabled',
@@ -429,9 +474,13 @@ export async function toggleRolePermission({ role, field, actorName }) {
     const prisma = getPrisma();
     const target = await prisma.rolePermission.findUnique({ where: { role } });
     if (target && allowedFields.has(field)) {
+      const nextVal = !target[field];
       await prisma.rolePermission.update({
         where: { role },
-        data: { [field]: !target[field] },
+        data: {
+          [field]: nextVal,
+          ...buildPermissionLabelUpdate(role, field, nextVal),
+        },
       });
       await appendSecurityLog(`${actorName || 'M. L. Umaima'} updated ${role} permissions`);
     }
@@ -451,8 +500,10 @@ export async function toggleRolePermission({ role, field, actorName }) {
   }
 
   const target = memoryStore.permissions.find((p) => p.role === role);
-  if (target && field in target) {
-    target[field] = !target[field];
+  if (target && allowedFields.has(field)) {
+    const nextVal = !target[field];
+    target[field] = nextVal;
+    Object.assign(target, buildPermissionLabelUpdate(role, field, nextVal));
     await appendSecurityLog(`${actorName || 'M. L. Umaima'} updated ${role} permissions`);
   }
   return {
@@ -497,16 +548,25 @@ export async function getInventoryBundle() {
   };
 }
 
-export async function createProductSku(payload, userId = null) {
-  const stockQty = Number(payload.stockQty || 0);
-  const reorderLevel = Number(payload.reorderLevel || 150);
-  const unitPrice = Number(payload.unitPrice || 45);
-  const unitPriceLkr = Number(
-    payload.unitPriceLkr || Math.round(unitPrice * USD_TO_LKR_RATE)
+export async function createProductSku(payload = {}, userId = null) {
+  const cleanName = requireNonEmptyString(payload.name, 'Product name');
+  const stockQty = parseNonNegativeNumber(payload.stockQty, 0, 'Stock quantity');
+  const reorderLevel = parseNonNegativeNumber(payload.reorderLevel, 150, 'Reorder level');
+  const unitPrice = parseNonNegativeNumber(payload.unitPrice, 45, 'Unit price');
+  const unitPriceLkr = parseNonNegativeNumber(
+    payload.unitPriceLkr,
+    Math.round(unitPrice * USD_TO_LKR_RATE),
+    'Unit price (LKR)'
   );
-  const costPrice = Number(payload.costPrice || Math.round(unitPrice * 0.68));
-  const costPriceLkr = Number(
-    payload.costPriceLkr || Math.round(costPrice * USD_TO_LKR_RATE)
+  const costPrice = parseNonNegativeNumber(
+    payload.costPrice,
+    Math.round(unitPrice * 0.68),
+    'Cost price'
+  );
+  const costPriceLkr = parseNonNegativeNumber(
+    payload.costPriceLkr,
+    Math.round(costPrice * USD_TO_LKR_RATE),
+    'Cost price (LKR)'
   );
 
   const isLow = stockQty <= reorderLevel;
@@ -520,7 +580,7 @@ export async function createProductSku(payload, userId = null) {
     bg1: '#4c1d95',
     bg2: '#7c3aed',
     accent: '#22c55e',
-    title: (payload.name || 'Ceylon Spice').slice(0, 14),
+    title: cleanName.slice(0, 14),
     code: skuCode.slice(-6),
   });
   const imageUrl = payload.imageUrl?.trim() ? payload.imageUrl.trim() : defaultSvg;
@@ -530,7 +590,7 @@ export async function createProductSku(payload, userId = null) {
     const created = await prisma.product.create({
       data: {
         sku: skuCode,
-        name: payload.name.trim(),
+        name: cleanName,
         category: payload.category || 'Spices',
         hsCode: payload.hsCode || '0910.99',
         originRegion: payload.originRegion || 'Kandy & Matale',
@@ -565,11 +625,15 @@ export async function createProductSku(payload, userId = null) {
 
   const nextId =
     memoryStore.products.reduce((max, p) => Math.max(max, p.productId), 0) + 1;
+  const finalSku = (payload.sku || `SKU-SPC-0${nextId}`).trim().toUpperCase();
+  if (memoryStore.products.some((p) => p.sku.toUpperCase() === finalSku)) {
+    throw buildError('A product with that SKU already exists', 409);
+  }
 
   const newProduct = {
     productId: nextId,
-    sku: (payload.sku || `SKU-SPC-0${nextId}`).trim().toUpperCase(),
-    name: payload.name.trim(),
+    sku: finalSku,
+    name: cleanName,
     category: payload.category || 'Spices',
     hsCode: payload.hsCode || '0910.99',
     originRegion: payload.originRegion || 'Kandy & Matale',
@@ -709,9 +773,18 @@ export async function recordInventoryMovement({
   quantity,
   referenceNote,
   userId = null,
-}) {
+} = {}) {
   const id = Number(productId);
   const qty = Number(quantity);
+  if (!Number.isFinite(id) || id <= 0) {
+    throw buildError('Valid productId is required', 400);
+  }
+  if (!['STOCK_IN', 'STOCK_OUT', 'ADJUSTMENT'].includes(movementType)) {
+    throw buildError('Movement type must be STOCK_IN, STOCK_OUT, or ADJUSTMENT', 400);
+  }
+  if (!Number.isFinite(qty) || qty <= 0) {
+    throw buildError('Movement quantity must be a positive number', 400);
+  }
 
   if (await isPostgresConnected()) {
     const prisma = getPrisma();
@@ -803,11 +876,12 @@ export async function getShipmentsBundle() {
   };
 }
 
-export async function createTradeDeclaration(payload, userId = null) {
-  const dutyRate = Number(payload.dutyRate || 0);
-  const totalValue = Number(payload.totalValue || 18500);
+export async function createTradeDeclaration(payload = {}, userId = null) {
+  const cleanTitle = requireNonEmptyString(payload.title, 'Declaration title');
+  const dutyRate = parseNonNegativeNumber(payload.dutyRate, 0, 'Duty rate');
+  const totalValue = parseNonNegativeNumber(payload.totalValue, 18500, 'Declared value');
   const dutyAmount = Math.round(totalValue * (dutyRate / 100));
-  const type = payload.type || 'EXPORT';
+  const type = payload.type === 'IMPORT' ? 'IMPORT' : 'EXPORT';
   const currency = payload.currency || (type === 'EXPORT' ? 'USD' : 'LKR');
   const prefix = type === 'IMPORT' ? 'IMP' : 'EXP';
   const badge =
@@ -819,7 +893,7 @@ export async function createTradeDeclaration(payload, userId = null) {
     await prisma.transaction.create({
       data: {
         txnNumber: `${prefix}-2026-${String(count + 1).padStart(4, '0')}`,
-        title: payload.title.trim(),
+        title: cleanTitle,
         type,
         currency,
         status: payload.status || 'IN_TRANSIT',
@@ -849,7 +923,7 @@ export async function createTradeDeclaration(payload, userId = null) {
   const newTxn = {
     txnId: nextId,
     txnNumber: `${prefix}-2026-000${nextId}`,
-    title: payload.title.trim(),
+    title: cleanTitle,
     type,
     currency,
     status: payload.status || 'IN_TRANSIT',
@@ -1015,18 +1089,22 @@ export async function getSuppliersBundle() {
   };
 }
 
-export async function createSupplierRecord(payload) {
+export async function createSupplierRecord(payload = {}) {
+  const cleanName = requireNonEmptyString(payload.name, 'Supplier name');
+  const balance = parseNonNegativeNumber(payload.balance, 1800000, 'Supplier balance');
+  const onTimeRate = parseNonNegativeNumber(payload.onTimeRate, 93, 'On-time delivery rate');
+
   if (await isPostgresConnected()) {
     await getPrisma().supplier.create({
       data: {
-        name: payload.name.trim(),
+        name: cleanName,
         country: payload.country || 'Sri Lanka',
         currency: 'LKR',
         contactEmail: payload.contactEmail || 'supplier@ceylonspices.lk',
         phone: payload.phone || '+94 81 220 0000',
         paymentTerms: payload.paymentTerms || 'Net 30',
-        balance: Number(payload.balance || 1800000),
-        onTimeRate: Number(payload.onTimeRate || 93),
+        balance,
+        onTimeRate,
         accuracyRate: 97,
         reliabilityDots: 4,
         featured: false,
@@ -1039,14 +1117,14 @@ export async function createSupplierRecord(payload) {
     memoryStore.suppliers.reduce((max, s) => Math.max(max, s.supplierId), 0) + 1;
   memoryStore.suppliers.unshift({
     supplierId: nextId,
-    name: payload.name.trim(),
+    name: cleanName,
     country: payload.country || 'Sri Lanka',
     currency: 'LKR',
     contactEmail: payload.contactEmail || 'supplier@ceylonspices.lk',
     phone: payload.phone || '+94 81 220 0000',
     paymentTerms: payload.paymentTerms || 'Net 30',
-    balance: Number(payload.balance || 1800000),
-    onTimeRate: Number(payload.onTimeRate || 93),
+    balance,
+    onTimeRate,
     accuracyRate: 97,
     reliabilityDots: 4,
     featured: false,
@@ -1266,17 +1344,26 @@ export async function getCustomersBundle() {
   };
 }
 
-export async function createCustomerRecord(payload) {
+export async function createCustomerRecord(payload = {}) {
+  const cleanName = requireNonEmptyString(payload.name, 'Customer name');
   const marketType = payload.marketType === 'LOCAL' ? 'LOCAL' : 'INTERNATIONAL';
   const currency = marketType === 'LOCAL' ? 'LKR' : 'USD';
   const defaultLimit = marketType === 'LOCAL' ? 5000000 : 100000;
-  const creditLimit = Number(payload.creditLimit || defaultLimit);
-  const balance = Number(payload.balance || Math.round(creditLimit * 0.25));
+  const creditLimit = parseNonNegativeNumber(
+    payload.creditLimit,
+    defaultLimit,
+    'Credit limit'
+  );
+  const balance = parseNonNegativeNumber(
+    payload.balance,
+    Math.round(creditLimit * 0.25),
+    'Customer balance'
+  );
 
   if (await isPostgresConnected()) {
     await getPrisma().customer.create({
       data: {
-        name: payload.name.trim(),
+        name: cleanName,
         country:
           payload.country || (marketType === 'LOCAL' ? 'Sri Lanka (Colombo)' : 'United Kingdom'),
         marketType,
@@ -1300,7 +1387,7 @@ export async function createCustomerRecord(payload) {
 
   memoryStore.customers.unshift({
     customerId: nextId,
-    name: payload.name.trim(),
+    name: cleanName,
     country:
       payload.country || (marketType === 'LOCAL' ? 'Sri Lanka (Colombo)' : 'United Kingdom'),
     marketType,
@@ -1496,34 +1583,91 @@ export async function createSalesInvoiceRecord(payload, userId = null) {
   return getCustomersBundle();
 }
 
-export async function updateSalesInvoiceRecord(soId, payload) {
+function computeUnpaidSalesOrderImpact(order) {
+  if (!order) return 0;
+  if (order.paymentStatus === 'PAID' || order.status === 'CANCELLED') {
+    return 0;
+  }
+  return Number(order.totalAmount || 0);
+}
+
+export async function updateSalesInvoiceRecord(soId, payload = {}) {
   const id = Number(soId);
   if (await isPostgresConnected()) {
     const prisma = getPrisma();
     const existing = await prisma.salesOrder.findUnique({ where: { soId: id } });
     if (!existing) throw buildError('Sales order not found', 404);
-    await prisma.salesOrder.update({
-      where: { soId: id },
-      data: {
-        ...(payload.productName ? { productName: payload.productName } : {}),
-        ...(payload.quantity !== undefined ? { quantity: Number(payload.quantity) } : {}),
-        ...(payload.totalAmount !== undefined
-          ? { totalAmount: Number(payload.totalAmount) }
-          : {}),
-        ...(payload.status ? { status: payload.status } : {}),
-        ...(payload.paymentStatus ? { paymentStatus: payload.paymentStatus } : {}),
-      },
+
+    const prevUnpaid = computeUnpaidSalesOrderImpact(existing);
+    const nextAmount =
+      payload.totalAmount !== undefined
+        ? parseNonNegativeNumber(payload.totalAmount, Number(existing.totalAmount), 'Total amount')
+        : Number(existing.totalAmount);
+    const nextStatus = payload.status || existing.status;
+    const nextPaymentStatus = payload.paymentStatus || existing.paymentStatus;
+    const nextUnpaid = computeUnpaidSalesOrderImpact({
+      totalAmount: nextAmount,
+      status: nextStatus,
+      paymentStatus: nextPaymentStatus,
     });
+    const delta = nextUnpaid - prevUnpaid;
+
+    const ops = [
+      prisma.salesOrder.update({
+        where: { soId: id },
+        data: {
+          ...(payload.productName ? { productName: payload.productName } : {}),
+          ...(payload.quantity !== undefined ? { quantity: Number(payload.quantity) } : {}),
+          ...(payload.totalAmount !== undefined ? { totalAmount: nextAmount } : {}),
+          ...(payload.status ? { status: payload.status } : {}),
+          ...(payload.paymentStatus ? { paymentStatus: payload.paymentStatus } : {}),
+        },
+      }),
+    ];
+
+    if (delta !== 0) {
+      const cust = await prisma.customer.findUnique({
+        where: { customerId: existing.customerId },
+      });
+      if (cust) {
+        ops.push(
+          prisma.customer.update({
+            where: { customerId: cust.customerId },
+            data: { balance: Math.max(0, Number(cust.balance || 0) + delta) },
+          })
+        );
+      }
+    }
+
+    await prisma.$transaction(ops);
     return getCustomersBundle();
   }
 
   const so = memoryStore.salesOrders.find((s) => s.soId === id);
   if (!so) throw buildError('Sales order not found', 404);
+
+  const prevUnpaid = computeUnpaidSalesOrderImpact(so);
   if (payload.productName) so.productName = payload.productName;
   if (payload.quantity !== undefined) so.quantity = Number(payload.quantity);
-  if (payload.totalAmount !== undefined) so.totalAmount = Number(payload.totalAmount);
+  if (payload.totalAmount !== undefined) {
+    so.totalAmount = parseNonNegativeNumber(payload.totalAmount, so.totalAmount, 'Total amount');
+  }
   if (payload.status) so.status = payload.status;
   if (payload.paymentStatus) so.paymentStatus = payload.paymentStatus;
+
+  const nextUnpaid = computeUnpaidSalesOrderImpact(so);
+  const delta = nextUnpaid - prevUnpaid;
+  if (delta !== 0) {
+    const cust = memoryStore.customers.find((c) => c.customerId === so.customerId);
+    if (cust) {
+      cust.balance = Math.max(0, Number(cust.balance || 0) + delta);
+      cust.utilization = Math.min(
+        100,
+        Math.round((cust.balance / Math.max(Number(cust.creditLimit || 1), 1)) * 100)
+      );
+    }
+  }
+
   return getCustomersBundle();
 }
 
@@ -1533,13 +1677,44 @@ export async function deleteSalesInvoiceRecord(soId) {
     const prisma = getPrisma();
     const existing = await prisma.salesOrder.findUnique({ where: { soId: id } });
     if (!existing) throw buildError('Sales order not found', 404);
-    await prisma.salesOrder.delete({ where: { soId: id } });
+
+    const unpaidImpact = computeUnpaidSalesOrderImpact(existing);
+    const ops = [prisma.salesOrder.delete({ where: { soId: id } })];
+
+    if (unpaidImpact > 0) {
+      const cust = await prisma.customer.findUnique({
+        where: { customerId: existing.customerId },
+      });
+      if (cust) {
+        ops.push(
+          prisma.customer.update({
+            where: { customerId: cust.customerId },
+            data: { balance: Math.max(0, Number(cust.balance || 0) - unpaidImpact) },
+          })
+        );
+      }
+    }
+
+    await prisma.$transaction(ops);
     return getCustomersBundle();
   }
 
   const idx = memoryStore.salesOrders.findIndex((s) => s.soId === id);
   if (idx === -1) throw buildError('Sales order not found', 404);
-  memoryStore.salesOrders.splice(idx, 1);
+  const [removed] = memoryStore.salesOrders.splice(idx, 1);
+
+  const unpaidImpact = computeUnpaidSalesOrderImpact(removed);
+  if (unpaidImpact > 0) {
+    const cust = memoryStore.customers.find((c) => c.customerId === removed.customerId);
+    if (cust) {
+      cust.balance = Math.max(0, Number(cust.balance || 0) - unpaidImpact);
+      cust.utilization = Math.min(
+        100,
+        Math.round((cust.balance / Math.max(Number(cust.creditLimit || 1), 1)) * 100)
+      );
+    }
+  }
+
   return getCustomersBundle();
 }
 
@@ -1900,9 +2075,19 @@ export async function deleteDocumentRecord(user, docId) {
   return getDocumentsBundle(user);
 }
 
-export async function getReportsAndDashboardSummary() {
-  const dbState = await getDatabaseStatus();
-  const inv = await getInventoryBundle();
+export async function getReportsAndDashboardSummary(user = null) {
+  const [dbState, inv, permissions] = await Promise.all([
+    getDatabaseStatus(),
+    getInventoryBundle(),
+    loadPermissionsList(),
+  ]);
+
+  const role = user?.role || 'ADMIN';
+  const rolePerm = permissions.find((p) => p.role === role);
+  const canViewFinance =
+    !user ||
+    role === 'ADMIN' ||
+    Boolean(rolePerm?.financeEnabled && rolePerm?.finance !== 'Restricted');
 
   let transactions;
   let suppliers;
@@ -1945,6 +2130,7 @@ export async function getReportsAndDashboardSummary() {
         : 'Connected (Schema Pending Push)'
       : 'Active (BIMS Sync Engine)',
     cloudinaryConfigured: isCloudinaryConfigured(),
+    canViewFinance,
     kpis: {
       revenue: 485000,
       revenueLkr: 68500000,

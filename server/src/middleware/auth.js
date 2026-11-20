@@ -5,11 +5,17 @@ import { verifyAuthToken } from '../utils/jwt.js';
  */
 export function authenticate(req, res, next) {
   const header = req.headers.authorization;
-  if (!header || !header.startsWith('Bearer ')) {
+  const queryToken = typeof req.query?.token === 'string' ? req.query.token.trim() : '';
+
+  let token = '';
+  if (header && header.startsWith('Bearer ')) {
+    token = header.slice(7).trim();
+  } else if (queryToken) {
+    token = queryToken;
+  } else {
     return res.status(401).json({ error: 'Authentication required' });
   }
 
-  const token = header.slice(7).trim();
   if (!token) {
     return res.status(401).json({ error: 'Authentication token missing' });
   }

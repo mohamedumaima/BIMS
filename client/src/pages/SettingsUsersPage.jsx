@@ -275,9 +275,10 @@ export default function SettingsUsersPage() {
                     </span>
 
                     <div className="flex justify-center">
-                      {row.role === 'ADMIN' ? (
+                      {canEditPerms ? (
                         <button
                           type="button"
+                          aria-label={`Toggle ${row.label} inventory permission`}
                           onClick={() => handleTogglePerm(row.role, 'inventoryEnabled')}
                           className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
                             row.inventoryEnabled ? 'bg-emerald-500' : 'bg-zinc-600'
@@ -295,9 +296,10 @@ export default function SettingsUsersPage() {
                     </div>
 
                     <div className="flex justify-center">
-                      {row.role === 'ADMIN' ? (
+                      {canEditPerms ? (
                         <button
                           type="button"
+                          aria-label={`Toggle ${row.label} trade docs permission`}
                           onClick={() => handleTogglePerm(row.role, 'tradeDocsEnabled')}
                           className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
                             row.tradeDocsEnabled ? 'bg-violet-600' : 'bg-zinc-600'
@@ -315,7 +317,24 @@ export default function SettingsUsersPage() {
                     </div>
 
                     <div className="flex justify-center">
-                      <Check className="w-3.5 h-3.5 text-zinc-400" />
+                      {canEditPerms ? (
+                        <button
+                          type="button"
+                          aria-label={`Toggle ${row.label} finance permission`}
+                          onClick={() => handleTogglePerm(row.role, 'financeEnabled')}
+                          className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
+                            row.financeEnabled ? 'bg-orange-500' : 'bg-zinc-600'
+                          }`}
+                        >
+                          <span
+                            className={`block w-4 h-4 rounded-full bg-white transition-transform ${
+                              row.financeEnabled ? 'translate-x-4' : ''
+                            }`}
+                          />
+                        </button>
+                      ) : (
+                        <Check className="w-3.5 h-3.5 text-zinc-400" />
+                      )}
                     </div>
                   </div>
                 </div>

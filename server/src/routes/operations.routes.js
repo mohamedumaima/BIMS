@@ -86,7 +86,7 @@ router.delete(
   authorize('ADMIN', 'MANAGER'),
   removeShipment
 );
-router.get('/documents/pdf/:txnId/:docType', downloadTradeDocumentPdf);
+router.get('/documents/pdf/:txnId/:docType', authenticate, downloadTradeDocumentPdf);
 
 // Secure Document & Media Vault (Cloudinary + RBAC)
 router.get('/documents', authenticate, getDocuments);
@@ -162,7 +162,7 @@ router.get('/assistant/status', authenticate, getAssistantStatus);
 router.post('/assistant/chat', authenticate, chatWithAssistant);
 
 // Reports Export
-router.get('/reports/export/pdf', exportReportPdf);
-router.get('/reports/export/csv', exportReportCsv);
+router.get('/reports/export/pdf', authenticate, exportReportPdf);
+router.get('/reports/export/csv', authenticate, exportReportCsv);
 
 export default router;

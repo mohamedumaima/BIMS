@@ -1,8 +1,11 @@
 import { Provider } from 'react-redux';
+import { MemoryRouter } from 'react-router-dom';
 import { fireEvent, render, screen } from '@testing-library/react';
 import App from '../App';
 import { store } from '../app/store';
 import { loginUser } from '../features/auth/authSlice';
+import CustomersPage from '../pages/CustomersPage';
+import DashboardPage from '../pages/DashboardPage';
 import DocumentsVaultPage from '../pages/DocumentsVaultPage';
 import InventoryPage from '../pages/InventoryPage';
 
@@ -93,5 +96,35 @@ describe('Landing Homepage & Theme Toggle', () => {
     expect(screen.getByLabelText(/Vault Category/i).innerHTML).toContain('value="FINANCIAL"');
     expect(screen.getByLabelText(/Role Access Level/i).innerHTML).toContain('value="ADMIN_ONLY"');
     expect(screen.getByLabelText(/Upload Document File from Device/i)).toHaveAttribute('type', 'file');
+  });
+
+  test('Dashboard enforces STAFF finance restriction and Customers Invoice modal includes payment status', () => {
+    store.dispatch(
+      loginUser.fulfilled({
+        token: 'staff-test-token',
+        user: { userId: 3, name: 'John Doe', role: 'STAFF' },
+      })
+    );
+
+    const { unmount } = render(
+      <Provider store={store}>
+        <MemoryRouter>
+          <DashboardPage />
+        </MemoryRouter>
+      </Provider>
+    );
+
+    expect(screen.getByText(/Finance Restricted \(STAFF Role\)/i)).toBeInTheDocument();
+    unmount();
+
+    render(
+      <Provider store={store}>
+        <CustomersPage />
+      </Provider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Generate Invoice/i }));
+    expect(screen.getByLabelText(/Sales Order Stage/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Sales Invoice Payment Status/i)).toBeInTheDocument();
   });
 });

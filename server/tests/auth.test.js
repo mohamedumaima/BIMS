@@ -154,14 +154,29 @@ describe('Ceylon Spices BIMS API — Full CRUD, Dual Currency & RBAC AI Assistan
     expect(staffChat.body.reply).toMatch(/restricted for Staff accounts/i);
   });
 
-  test('PDFKit and CSV export endpoints stream documents', async () => {
-    const pdfRes = await request(app).get('/api/documents/pdf/1/COMMERCIAL_INVOICE');
+  test('PDFKit and CSV export endpoints enforce auth and stream documents', async () => {
+    const unauthPdf = await request(app).get('/api/documents/pdf/1/COMMERCIAL_INVOICE');
+    expect(unauthPdf.statusCode).toBe(401);
+
+    const pdfRes = await request(app)
+      .get('/api/documents/pdf/1/COMMERCIAL_INVOICE')
+      .set('Authorization', `Bearer ${adminToken}`);
     expect(pdfRes.statusCode).toBe(200);
     expect(pdfRes.headers['content-type']).toMatch(/application\/pdf/);
 
-    const csvRes = await request(app).get('/api/reports/export/csv');
+    const csvRes = await request(app)
+      .get('/api/reports/export/csv')
+      .set('Authorization', `Bearer ${adminToken}`);
     expect(csvRes.statusCode).toBe(200);
     expect(csvRes.headers['content-type']).toMatch(/text\/csv/);
+    expect(csvRes.text).toMatch(/\$485,000/);
+
+    const staffCsvRes = await request(app)
+      .get('/api/reports/export/csv')
+      .set('Authorization', `Bearer ${staffToken}`);
+    expect(staffCsvRes.statusCode).toBe(200);
+    expect(staffCsvRes.text).not.toMatch(/\$485,000/);
+    expect(staffCsvRes.text).toMatch(/Restricted \(Manager\/Admin Only\)/);
   });
 
   test('Live metrics recalculate dynamically across Inventory, Shipments, Suppliers, and Customers', async () => {
