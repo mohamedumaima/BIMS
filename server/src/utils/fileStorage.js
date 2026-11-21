@@ -17,8 +17,8 @@ function inferFormatFromFile(file, resultFormat) {
   return 'jpg';
 }
 
-function isImageOrPdfMime(mimetype = '') {
-  return mimetype.startsWith('image/') || mimetype === 'application/pdf';
+function isImageMime(mimetype = '') {
+  return mimetype.startsWith('image/');
 }
 
 function uploadBufferToCloudinary(cloudinary, file, options = {}) {
@@ -28,7 +28,7 @@ function uploadBufferToCloudinary(cloudinary, file, options = {}) {
       .basename(file.originalname || 'asset', ext)
       .replace(/[^a-zA-Z0-9_-]/g, '_')
       .slice(0, 48);
-    const resourceType = options.resourceType || (isImageOrPdfMime(file.mimetype) ? 'auto' : 'raw');
+    const resourceType = options.resourceType || (isImageMime(file.mimetype) ? 'image' : 'raw');
     const publicId =
       resourceType === 'raw' && ext
         ? `${Date.now()}-${baseName || 'file'}${ext}`
@@ -63,33 +63,41 @@ export async function storeUploadedProductImage(file) {
 
   const cloudinary = getCloudinaryClient();
   if (cloudinary) {
-    const result = await uploadBufferToCloudinary(cloudinary, file, {
-      folder: env.cloudinaryProductFolder,
-      resourceType: 'image',
-      deliveryType: 'upload',
-    });
-    if (result?.secure_url) {
-      return result.secure_url;
+    try {
+      const result = await uploadBufferToCloudinary(cloudinary, file, {
+        folder: env.cloudinaryProductFolder,
+        resourceType: 'image',
+        deliveryType: 'upload',
+      });
+      if (result?.secure_url) {
+        return result.secure_url;
+      }
+    } catch (err) {
+      console.warn('[Product Image Upload] Cloudinary failed, trying fallback:', err?.message);
     }
   }
 
   const supabase = getSupabaseAdmin();
   if (supabase) {
-    const objectPath = `products/${Date.now()}-${sanitizeFileName(file.originalname)}`;
-    const { error } = await supabase.storage
-      .from(env.supabaseStorageBucket)
-      .upload(objectPath, file.buffer, {
-        contentType: file.mimetype,
-        upsert: true,
-      });
-
-    if (!error) {
-      const { data } = supabase.storage
+    try {
+      const objectPath = `products/${Date.now()}-${sanitizeFileName(file.originalname)}`;
+      const { error } = await supabase.storage
         .from(env.supabaseStorageBucket)
-        .getPublicUrl(objectPath);
-      if (data?.publicUrl) {
-        return data.publicUrl;
+        .upload(objectPath, file.buffer, {
+          contentType: file.mimetype,
+          upsert: true,
+        });
+
+      if (!error) {
+        const { data } = supabase.storage
+          .from(env.supabaseStorageBucket)
+          .getPublicUrl(objectPath);
+        if (data?.publicUrl) {
+          return data.publicUrl;
+        }
       }
+    } catch (err) {
+      console.warn('[Product Image Upload] Supabase failed, using inline fallback:', err?.message);
     }
   }
 
@@ -99,6 +107,7 @@ export async function storeUploadedProductImage(file) {
 /**
  * Stores financial, trade, or management documents (images, PDFs, spreadsheets, etc.).
  * Uses Cloudinary authenticated delivery when configured so files require RBAC-signed access.
+ * PDFs and non-image documents use resourceType 'raw' so Cloudinary never rejects valid/scanned PDFs.
  */
 export async function storeProtectedDocumentFile(file, { privateAccess = true } = {}) {
   if (!file || !file.buffer) {
@@ -107,48 +116,56 @@ export async function storeProtectedDocumentFile(file, { privateAccess = true } 
 
   const cloudinary = getCloudinaryClient();
   if (cloudinary) {
-    const deliveryType = privateAccess ? 'authenticated' : 'upload';
-    const targetResourceType = isImageOrPdfMime(file.mimetype) ? 'auto' : 'raw';
-    const result = await uploadBufferToCloudinary(cloudinary, file, {
-      folder: env.cloudinaryDocumentsFolder,
-      resourceType: targetResourceType,
-      deliveryType,
-    });
+    try {
+      const deliveryType = privateAccess ? 'authenticated' : 'upload';
+      const targetResourceType = isImageMime(file.mimetype) ? 'image' : 'raw';
+      const result = await uploadBufferToCloudinary(cloudinary, file, {
+        folder: env.cloudinaryDocumentsFolder,
+        resourceType: targetResourceType,
+        deliveryType,
+      });
 
-    const isRaw = (result.resource_type || targetResourceType) === 'raw';
-    return {
-      storageProvider: 'CLOUDINARY',
-      filePath: result.secure_url,
-      storageKey: result.public_id,
-      resourceType: result.resource_type || 'image',
-      deliveryType: result.type || deliveryType,
-      fileFormat: isRaw ? '' : inferFormatFromFile(file, result.format),
-      mimeType: file.mimetype,
-      fileSizeBytes: Number(result.bytes || file.size || 0),
-    };
+      const isRaw = (result.resource_type || targetResourceType) === 'raw';
+      return {
+        storageProvider: 'CLOUDINARY',
+        filePath: result.secure_url,
+        storageKey: result.public_id,
+        resourceType: result.resource_type || targetResourceType,
+        deliveryType: result.type || deliveryType,
+        fileFormat: isRaw ? '' : inferFormatFromFile(file, result.format),
+        mimeType: file.mimetype,
+        fileSizeBytes: Number(result.bytes || file.size || 0),
+      };
+    } catch (err) {
+      console.warn('[Document Vault Upload] Cloudinary failed, trying fallback:', err?.message);
+    }
   }
 
   const supabase = getSupabaseAdmin();
   if (supabase) {
-    const objectPath = `documents/${Date.now()}-${sanitizeFileName(file.originalname)}`;
-    const { error } = await supabase.storage
-      .from(env.supabaseStorageBucket)
-      .upload(objectPath, file.buffer, {
-        contentType: file.mimetype,
-        upsert: false,
-      });
+    try {
+      const objectPath = `documents/${Date.now()}-${sanitizeFileName(file.originalname)}`;
+      const { error } = await supabase.storage
+        .from(env.supabaseStorageBucket)
+        .upload(objectPath, file.buffer, {
+          contentType: file.mimetype,
+          upsert: false,
+        });
 
-    if (!error) {
-      return {
-        storageProvider: 'SUPABASE',
-        filePath: objectPath,
-        storageKey: objectPath,
-        resourceType: 'raw',
-        deliveryType: privateAccess ? 'authenticated' : 'upload',
-        fileFormat: inferFormatFromFile(file),
-        mimeType: file.mimetype,
-        fileSizeBytes: Number(file.size || file.buffer.length || 0),
-      };
+      if (!error) {
+        return {
+          storageProvider: 'SUPABASE',
+          filePath: objectPath,
+          storageKey: objectPath,
+          resourceType: 'raw',
+          deliveryType: privateAccess ? 'authenticated' : 'upload',
+          fileFormat: inferFormatFromFile(file),
+          mimeType: file.mimetype,
+          fileSizeBytes: Number(file.size || file.buffer.length || 0),
+        };
+      }
+    } catch (err) {
+      console.warn('[Document Vault Upload] Supabase failed, using inline fallback:', err?.message);
     }
   }
 
@@ -208,6 +225,61 @@ export async function resolveDocumentAccessUrl(doc, { expiresInSeconds = 300, do
   }
 
   return doc.filePath || null;
+}
+
+/**
+ * Fetches the raw file bytes for an authorized stored document (from Inline base64,
+ * Cloudinary signed URL, or Supabase Storage) so the backend can stream it cleanly
+ * with proper Content-Type and Content-Disposition headers.
+ */
+export async function fetchStoredDocumentBuffer(doc) {
+  if (!doc) return null;
+
+  if (typeof doc.filePath === 'string' && doc.filePath.startsWith('data:')) {
+    const match = doc.filePath.match(/^data:([^;]+);base64,(.*)$/s);
+    if (match) {
+      return {
+        buffer: Buffer.from(match[2], 'base64'),
+        mimeType: doc.mimeType || match[1] || 'application/octet-stream',
+        fileName: doc.fileName || 'document',
+      };
+    }
+  }
+
+  if (doc.storageProvider === 'SUPABASE' && doc.storageKey) {
+    const supabase = getSupabaseAdmin();
+    if (supabase) {
+      const { data, error } = await supabase.storage
+        .from(env.supabaseStorageBucket)
+        .download(doc.storageKey);
+      if (!error && data) {
+        const arrayBuf = await data.arrayBuffer();
+        return {
+          buffer: Buffer.from(arrayBuf),
+          mimeType: doc.mimeType || data.type || 'application/octet-stream',
+          fileName: doc.fileName || 'document',
+        };
+      }
+    }
+  }
+
+  const accessUrl = await resolveDocumentAccessUrl(doc, {
+    expiresInSeconds: 300,
+    download: false,
+  });
+  if (accessUrl && /^https?:\/\//i.test(accessUrl)) {
+    const res = await fetch(accessUrl);
+    if (res.ok) {
+      const arrayBuf = await res.arrayBuffer();
+      return {
+        buffer: Buffer.from(arrayBuf),
+        mimeType: doc.mimeType || res.headers.get('content-type') || 'application/octet-stream',
+        fileName: doc.fileName || 'document',
+      };
+    }
+  }
+
+  return null;
 }
 
 /**

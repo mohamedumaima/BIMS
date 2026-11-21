@@ -22,6 +22,11 @@ export const loginUser = createAsyncThunk(
       localStorage.setItem(USER_KEY, JSON.stringify(data.user));
       return data;
     } catch (err) {
+      if (!err.response || err.response.status >= 502) {
+        return rejectWithValue(
+          'Cannot reach the backend API server. Start the backend ("cd server && npm run dev") and ensure port 5000 is running.'
+        );
+      }
       return rejectWithValue(err.response?.data?.error || 'Login failed');
     }
   }

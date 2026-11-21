@@ -215,7 +215,11 @@ export function PdfDocCard({ title, badge = 'PDF', badgeColor = 'red', onClick }
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onClick?.(e);
+      }}
       className="group flex flex-col items-center text-center p-2.5 rounded-xl bims-subcard hover:border-violet-500/50 transition-all cursor-pointer"
     >
       <div className="relative w-16 h-20 rounded-lg bg-white text-zinc-800 shadow-md p-2 flex flex-col justify-between border border-zinc-200 group-hover:scale-105 transition-transform">

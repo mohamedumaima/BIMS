@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { Bell, Globe, Leaf, LogOut, Menu, Moon, Sun, X } from 'lucide-react';
+import { Bell, Globe, LogOut, Menu, Moon, Sun, X } from 'lucide-react';
 import { logout } from '../features/auth/authSlice';
 import { toggleTheme } from '../features/theme/themeSlice';
 import AiChatbotWidget from './AiChatbotWidget';
@@ -52,9 +52,11 @@ export default function Layout() {
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
           <Link to="/welcome" className="flex items-center gap-3" title="View Landing Homepage">
-            <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-500">
-              <Leaf className="w-5 h-5" />
-            </div>
+            <img
+              src="/images/logo-icon.png"
+              alt="Ceylon Spices BIMS Logo"
+              className="w-10 h-10 rounded-xl object-contain bg-white p-0.5 border border-amber-500/30 shadow-sm shrink-0"
+            />
             <div className="leading-tight">
               <p className="text-sm font-bold tracking-tight">Ceylon Spices</p>
               <p className="text-[11px] text-zinc-400 font-medium">BIMS</p>

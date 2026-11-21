@@ -38,6 +38,7 @@ import {
   removeShipment,
   removeSupplier,
   removeUserAccount,
+  streamDocumentContent,
   updateRolePermission,
   updateShipmentStatus,
   uploadDocument,
@@ -99,6 +100,7 @@ router.put(
   editDocument
 );
 router.get('/documents/:docId/view', authenticate, viewDocumentAccess);
+router.get('/documents/:docId/content', authenticate, streamDocumentContent);
 router.delete(
   '/documents/:docId',
   authenticate,

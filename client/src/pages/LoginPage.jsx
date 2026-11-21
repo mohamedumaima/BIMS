@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Link, Navigate } from 'react-router-dom';
-import { ArrowLeft, ArrowUpRight, Leaf, Moon, Sun } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, Moon, Sun } from 'lucide-react';
 import { clearAuthError, loginUser } from '../features/auth/authSlice';
 import { toggleTheme } from '../features/theme/themeSlice';
 
@@ -69,11 +69,13 @@ export default function LoginPage() {
       </div>
 
       <div className="w-full max-w-md bims-card p-7 sm:p-8">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-500 flex items-center justify-center">
-              <Leaf className="w-4 h-4" />
-            </div>
+            <img
+              src="/images/logo-icon.png"
+              alt="Ceylon Spices BIMS Logo"
+              className="w-9 h-9 rounded-xl object-contain bg-white p-0.5 border border-amber-500/30 shadow-sm shrink-0"
+            />
             <span className="text-xs font-semibold text-zinc-400">BIMS Login Portal</span>
           </div>
           <span className="w-7 h-7 rounded-full bims-subcard flex items-center justify-center text-zinc-400">
@@ -81,9 +83,15 @@ export default function LoginPage() {
           </span>
         </div>
 
-        <div className="w-10 h-1 rounded-full bg-zinc-600/40 mx-auto mb-5" />
+        <div className="flex justify-center mb-5">
+          <img
+            src="/images/logo-full.png"
+            alt="Ceylon Spices BIMS — Business Inventory Management System"
+            className="h-28 w-auto rounded-2xl bg-white px-4 py-2 border border-zinc-200/80 shadow-sm object-contain"
+          />
+        </div>
 
-        <h1 className="text-2xl font-bold tracking-tight mb-6">Sign In to BIMS</h1>
+        <h1 className="text-2xl font-bold tracking-tight mb-6 text-center">Sign In to BIMS</h1>
 
         <form onSubmit={handleSubmit} className="space-y-3.5">
           {error ? (

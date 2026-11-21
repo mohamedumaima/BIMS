@@ -20,6 +20,7 @@ import {
   deleteTradeDeclaration,
   findTransactionById,
   getAuthorizedDocumentAccess,
+  getAuthorizedDocumentBuffer,
   getCustomersBundle,
   getDocumentsBundle,
   getInventoryBundle,
@@ -131,7 +132,8 @@ export async function updateShipmentStatus(req, res) {
 export async function downloadTradeDocumentPdf(req, res) {
   const { txnId, docType } = req.params;
   const txn = await findTransactionById(txnId);
-  streamTradeDocumentPdf(res, txn, (docType || 'COMMERCIAL_INVOICE').toUpperCase());
+  const inline = req.query.inline === 'true' || req.query.inline === '1';
+  streamTradeDocumentPdf(res, txn, (docType || 'COMMERCIAL_INVOICE').toUpperCase(), { inline });
 }
 
 export async function getDocuments(req, res) {
@@ -181,6 +183,22 @@ export async function viewDocumentAccess(req, res) {
     download,
   });
   res.json(result);
+}
+
+export async function streamDocumentContent(req, res) {
+  const download = req.query.download === 'true' || req.query.download === '1';
+  const { buffer, mimeType, fileName } = await getAuthorizedDocumentBuffer(
+    req.user,
+    req.params.docId
+  );
+  const safeName = String(fileName || 'document').replace(/["\r\n]/g, '_');
+  res.setHeader('Content-Type', mimeType || 'application/octet-stream');
+  res.setHeader(
+    'Content-Disposition',
+    `${download ? 'attachment' : 'inline'}; filename="${safeName}"`
+  );
+  res.setHeader('Cache-Control', 'private, max-age=60');
+  res.send(buffer);
 }
 
 export async function removeDocument(req, res) {

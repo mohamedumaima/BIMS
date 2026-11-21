@@ -1,4 +1,8 @@
-import { USD_TO_LKR_RATE, makeSpiceSvg } from '../config/defaultSeedData.js';
+import {
+  USD_TO_LKR_RATE,
+  makeSpiceSvg,
+  resolveDefaultSpiceImage,
+} from '../config/defaultSeedData.js';
 import { syncProductMetrics } from './metrics.js';
 
 export function mapUser(row) {
@@ -29,13 +33,20 @@ export function mapPublicUser(row) {
 export function mapProduct(row) {
   const unitPrice = Number(row.unitPrice || 0);
   const costPrice = Number(row.costPrice || 0);
-  const defaultSvg = makeSpiceSvg({
-    bg1: '#4c1d95',
-    bg2: '#7c3aed',
-    accent: '#22c55e',
-    title: (row.name || 'Ceylon Spice').slice(0, 14),
-    code: (row.sku || `SKU-${row.productId}`).slice(-6),
-  });
+  const defaultSvg =
+    resolveDefaultSpiceImage(row) ||
+    makeSpiceSvg({
+      bg1: '#4c1d95',
+      bg2: '#7c3aed',
+      accent: '#22c55e',
+      title: (row.name || 'Ceylon Spice').slice(0, 14),
+      code: (row.sku || `SKU-${row.productId}`).slice(-6),
+    });
+
+  const resolvedImageUrl =
+    !row.imageUrl || String(row.imageUrl).startsWith('data:image/svg+xml')
+      ? defaultSvg
+      : row.imageUrl;
 
   return syncProductMetrics({
     productId: row.productId,
@@ -45,7 +56,7 @@ export function mapProduct(row) {
     hsCode: row.hsCode || '0910.99',
     originRegion: row.originRegion || 'Kandy & Matale',
     description: row.description || '',
-    imageUrl: row.imageUrl || defaultSvg,
+    imageUrl: resolvedImageUrl,
     imagePublicId: row.imagePublicId || null,
     unitPrice,
     unitPriceLkr: Number(

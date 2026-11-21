@@ -170,12 +170,21 @@ function renderSingleTradePage(doc, txn, docType) {
     );
 }
 
-export function streamTradeDocumentPdf(res, txn, docType = 'COMMERCIAL_INVOICE') {
+export function streamTradeDocumentPdf(
+  res,
+  txn,
+  docType = 'COMMERCIAL_INVOICE',
+  { inline = false } = {}
+) {
+  const safeTxn = txn || { txnNumber: 'EXP-2026-0001', type: 'EXPORT', status: 'IN_TRANSIT' };
   const doc = new PDFDocument({ size: 'A4', margin: 40 });
-  const filename = `${docType.toLowerCase()}-${txn.txnNumber || 'trade'}.pdf`;
+  const filename = `${docType.toLowerCase()}-${safeTxn.txnNumber || 'trade'}.pdf`;
 
   res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.setHeader(
+    'Content-Disposition',
+    `${inline ? 'inline' : 'attachment'}; filename="${filename}"`
+  );
   doc.pipe(res);
 
   if (docType === 'BUNDLE') {
@@ -187,10 +196,10 @@ export function streamTradeDocumentPdf(res, txn, docType = 'COMMERCIAL_INVOICE')
     ];
     types.forEach((t, idx) => {
       if (idx > 0) doc.addPage();
-      renderSingleTradePage(doc, txn, t);
+      renderSingleTradePage(doc, safeTxn, t);
     });
   } else {
-    renderSingleTradePage(doc, txn, docType);
+    renderSingleTradePage(doc, safeTxn, docType);
   }
 
   doc.end();

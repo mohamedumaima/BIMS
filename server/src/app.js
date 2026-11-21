@@ -9,7 +9,11 @@ import operationsRoutes from './routes/operations.routes.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 
 export function configureApp(app) {
-  app.use(helmet());
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    })
+  );
   app.use(
     cors({
       origin(origin, callback) {
@@ -22,6 +26,7 @@ export function configureApp(app) {
         return callback(err);
       },
       credentials: true,
+      exposedHeaders: ['Content-Disposition', 'Content-Type'],
     })
   );
 

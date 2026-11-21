@@ -1,6 +1,9 @@
+import { useEffect } from 'react';
+import { useDispatch } from 'react-redux';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
+import { logout } from './features/auth/authSlice';
 import CustomersPage from './pages/CustomersPage';
 import DashboardPage from './pages/DashboardPage';
 import DocumentsVaultPage from './pages/DocumentsVaultPage';
@@ -13,6 +16,16 @@ import ShipmentsPage from './pages/ShipmentsPage';
 import SuppliersPage from './pages/SuppliersPage';
 
 export default function App() {
+  const dispatch = useDispatch();
+
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      dispatch(logout());
+    };
+    window.addEventListener('bims:auth-expired', handleAuthExpired);
+    return () => window.removeEventListener('bims:auth-expired', handleAuthExpired);
+  }, [dispatch]);
+
   return (
     <BrowserRouter>
       <Routes>

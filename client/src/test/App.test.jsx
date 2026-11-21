@@ -1,6 +1,7 @@
 import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { vi } from 'vitest';
 import App from '../App';
 import { store } from '../app/store';
 import { loginUser } from '../features/auth/authSlice';
@@ -21,12 +22,67 @@ describe('Landing Homepage & Theme Toggle', () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/USD \(\$\) International Ledger/i)).toBeInTheDocument();
     expect(screen.getByText(/LKR \(Rs\.\) Domestic Ledger/i)).toBeInTheDocument();
+    expect(screen.getByAltText(/Ceylon Spices BIMS Logo/i)).toHaveAttribute(
+      'src',
+      '/images/logo-icon.png'
+    );
+    expect(screen.getByAltText('Ceylon Alba Cinnamon')).toHaveAttribute(
+      'src',
+      '/images/spices/cinnamon.webp'
+    );
+    expect(screen.getByAltText('Gourmet Ceylon Vanilla Pods')).toHaveAttribute(
+      'src',
+      '/images/spices/vanilla.jpg'
+    );
 
     const themeBtn = screen.getByRole('button', { name: /toggle light\/dark theme/i });
     fireEvent.click(themeBtn);
     expect(document.documentElement.classList.contains('dark')).toBe(false);
     fireEvent.click(themeBtn);
     expect(document.documentElement.classList.contains('dark')).toBe(true);
+  });
+
+  test('Landing hero section renders auto-rotating Ceylon Spices carousel with controls', () => {
+    vi.useFakeTimers();
+    try {
+      render(
+        <Provider store={store}>
+          <App />
+        </Provider>
+      );
+
+      expect(screen.getByText(/Export-Grade Ceylon Alba Cinnamon/i)).toBeInTheDocument();
+      expect(screen.getByText('01 / 04')).toBeInTheDocument();
+
+      // Auto-advances after 5 seconds
+      act(() => {
+        vi.advanceTimersByTime(5000);
+      });
+      expect(screen.getByText(/Authentic Highland Spice Catalog/i)).toBeInTheDocument();
+      expect(screen.getByText('02 / 04')).toBeInTheDocument();
+
+      // Next & Previous controls work
+      fireEvent.click(screen.getByRole('button', { name: /next slide/i }));
+      expect(screen.getByText(/Global Export Freight & Customs/i)).toBeInTheDocument();
+      expect(screen.getByText('03 / 04')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: /previous slide/i }));
+      expect(screen.getByText(/Authentic Highland Spice Catalog/i)).toBeInTheDocument();
+
+      // Pause stops auto-rotation
+      fireEvent.click(screen.getByRole('button', { name: /pause auto-slide/i }));
+      act(() => {
+        vi.advanceTimersByTime(5000);
+      });
+      expect(screen.getByText('02 / 04')).toBeInTheDocument();
+
+      // Tab indicator selects slide directly
+      fireEvent.click(screen.getByRole('tab', { name: /go to slide 4/i }));
+      expect(screen.getByText(/Batch Quality & Dual-Currency Control/i)).toBeInTheDocument();
+      expect(screen.getByText('04 / 04')).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   test('Inventory SKU modal uses device file upload instead of URL text field', () => {

@@ -25,6 +25,7 @@ export default function DashboardPage() {
   }, []);
 
   const products = summary?.products || [];
+  const primaryTxnId = summary?.transactions?.[0]?.txnId || 1;
   const isFinanceRestricted =
     summary?.canViewFinance !== undefined
       ? !summary.canViewFinance
@@ -155,21 +156,30 @@ export default function DashboardPage() {
                 title="Commercial Invoice"
                 badge="PDF"
                 onClick={() =>
-                  downloadApiFile('/documents/pdf/1/COMMERCIAL_INVOICE', 'commercial-invoice.pdf')
+                  downloadApiFile(
+                    `/documents/pdf/${primaryTxnId}/COMMERCIAL_INVOICE`,
+                    'commercial-invoice.pdf'
+                  )
                 }
               />
               <PdfDocCard
                 title="Packing List"
                 badge="PDF"
                 onClick={() =>
-                  downloadApiFile('/documents/pdf/1/PACKING_LIST', 'packing-list.pdf')
+                  downloadApiFile(
+                    `/documents/pdf/${primaryTxnId}/PACKING_LIST`,
+                    'packing-list.pdf'
+                  )
                 }
               />
               <PdfDocCard
                 title="Bill of Lading"
                 badge="PDF"
                 onClick={() =>
-                  downloadApiFile('/documents/pdf/1/BILL_OF_LADING', 'bill-of-lading.pdf')
+                  downloadApiFile(
+                    `/documents/pdf/${primaryTxnId}/BILL_OF_LADING`,
+                    'bill-of-lading.pdf'
+                  )
                 }
               />
               <PdfDocCard
@@ -177,7 +187,7 @@ export default function DashboardPage() {
                 badge="PDF"
                 onClick={() =>
                   downloadApiFile(
-                    '/documents/pdf/1/CERTIFICATE_OF_ORIGIN',
+                    `/documents/pdf/${primaryTxnId}/CERTIFICATE_OF_ORIGIN`,
                     'certificate-of-origin.pdf'
                   )
                 }
@@ -207,7 +217,9 @@ export default function DashboardPage() {
             title={'Automated\nTrade PDF\nSuite'}
             buttonLabel="Download Trade Bundle ↓"
             secondaryButtonLabel="Export Executive CSV"
-            onPrimaryClick={() => downloadApiFile('/documents/pdf/1/BUNDLE', 'trade-bundle.pdf')}
+            onPrimaryClick={() =>
+              downloadApiFile(`/documents/pdf/${primaryTxnId}/BUNDLE`, 'trade-bundle.pdf')
+            }
             onSecondaryClick={() =>
               downloadApiFile('/reports/export/csv', 'ceylon-spices-bims-report.csv')
             }

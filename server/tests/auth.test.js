@@ -16,7 +16,7 @@ describe('Ceylon Spices BIMS API — Full CRUD, Dual Currency & RBAC AI Assistan
     const res = await request(app).get('/api/public/showcase');
     expect(res.statusCode).toBe(200);
     expect(res.body.spices.length).toBeGreaterThanOrEqual(7);
-    expect(res.body.spices[0].imageUrl).toMatch(/^data:image\/svg\+xml/);
+    expect(res.body.spices[0].imageUrl).toBe('/images/spices/cinnamon.webp');
     expect(res.body.spices[0].unitPrice).toBeGreaterThan(0);
     expect(res.body.spices[0].unitPriceLkr).toBeGreaterThan(0);
   });
@@ -344,12 +344,24 @@ describe('Ceylon Spices BIMS API — Full CRUD, Dual Currency & RBAC AI Assistan
       .set('Authorization', `Bearer ${staffToken}`);
     expect(staffView.statusCode).toBe(403);
 
-    // ADMIN can retrieve signed/access URL and upload PDF receipt too
+    const staffContent = await request(app)
+      .get(`/api/documents/${uploadedDoc.docId}/content`)
+      .set('Authorization', `Bearer ${staffToken}`);
+    expect(staffContent.statusCode).toBe(403);
+
+    // ADMIN can retrieve signed/access URL, stream binary content, and upload PDF receipt too
     const adminView = await request(app)
       .get(`/api/documents/${uploadedDoc.docId}/view`)
       .set('Authorization', `Bearer ${adminToken}`);
     expect(adminView.statusCode).toBe(200);
     expect(adminView.body.accessUrl).toBeTruthy();
+    expect(adminView.body.contentEndpoint).toBe(`/documents/${uploadedDoc.docId}/content`);
+
+    const adminContent = await request(app)
+      .get(`/api/documents/${uploadedDoc.docId}/content`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(adminContent.statusCode).toBe(200);
+    expect(adminContent.headers['content-type']).toMatch(/image\/png/);
 
     const pdfDocRes = await request(app)
       .post('/api/documents')
@@ -364,6 +376,13 @@ describe('Ceylon Spices BIMS API — Full CRUD, Dual Currency & RBAC AI Assistan
       });
     expect(pdfDocRes.statusCode).toBe(201);
     expect(pdfDocRes.body.summary.totalAuthorized).toBeGreaterThanOrEqual(2);
+    const pdfDoc = pdfDocRes.body.documents.find((d) => d.title === 'Packing Slip Receipt');
+    const pdfContent = await request(app)
+      .get(`/api/documents/${pdfDoc.docId}/content?download=true`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(pdfContent.statusCode).toBe(200);
+    expect(pdfContent.headers['content-type']).toMatch(/application\/pdf/);
+    expect(pdfContent.headers['content-disposition']).toMatch(/attachment;/);
 
     // Update metadata (PUT CRUD) succeeds for ADMIN and fails with 403 for STAFF
     const staffEdit = await request(app)

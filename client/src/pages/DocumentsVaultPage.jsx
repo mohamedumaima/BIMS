@@ -21,7 +21,7 @@ import {
   VioletActionCard,
 } from '../components/BentoWidgets';
 import InlineAssistantBar from '../components/InlineAssistantBar';
-import { api } from '../services/api';
+import { api, downloadApiFile, fetchApiBlobUrl } from '../services/api';
 
 const DOC_TYPES = [
   { value: 'CHEQUE', label: 'Cheque Scan', defaultCategory: 'FINANCIAL' },
@@ -129,6 +129,14 @@ export default function DocumentsVaultPage() {
       }
     };
   }, [localPreviewUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (previewState?.accessUrl && previewState.accessUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(previewState.accessUrl);
+      }
+    };
+  }, [previewState?.accessUrl]);
 
   const resetFileSelection = () => {
     if (localPreviewUrl && localPreviewUrl.startsWith('blob:')) {
@@ -259,14 +267,31 @@ export default function DocumentsVaultPage() {
     setPreviewError('');
     setPreviewLoadingId(doc.docId);
     try {
-      const { data } = await api.get(`/documents/${doc.docId}/view`, {
-        params: download ? { download: 'true' } : undefined,
-      });
       if (download) {
-        window.open(data.accessUrl, '_blank', 'noopener,noreferrer');
-      } else {
-        setPreviewState(data);
+        const res = await downloadApiFile(
+          `/documents/${doc.docId}/content?download=true`,
+          doc.fileName || 'vault-document'
+        );
+        if (!res.ok) {
+          setPreviewError(res.error || 'Unable to download document.');
+        }
+        return;
       }
+
+      const { data } = await api.get(`/documents/${doc.docId}/view`);
+      let resolvedUrl = data.accessUrl;
+      try {
+        const { blobUrl } = await fetchApiBlobUrl(
+          data.contentEndpoint || `/documents/${doc.docId}/content`
+        );
+        resolvedUrl = blobUrl;
+      } catch {
+        // Fallback to signed external URL if content proxy is unavailable
+      }
+      setPreviewState({
+        ...data,
+        accessUrl: resolvedUrl,
+      });
     } catch (err) {
       setPreviewError(
         err.response?.data?.error || 'You do not have permission to view this document.'
@@ -626,15 +651,14 @@ export default function DocumentsVaultPage() {
                       <p className="text-zinc-400">
                         Browser inline preview unavailable for this file format ({previewState.document.mimeType}).
                       </p>
-                      <a
-                        href={previewState.accessUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-violet-600 text-white font-semibold"
+                      <button
+                        type="button"
+                        onClick={() => handleViewDocument(previewState.document, { download: true })}
+                        className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-violet-600 hover:bg-violet-500 text-white font-semibold cursor-pointer"
                       >
                         <Download className="w-3.5 h-3.5" />
                         <span>Download File</span>
-                      </a>
+                      </button>
                     </div>
                   )}
 

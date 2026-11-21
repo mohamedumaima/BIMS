@@ -101,7 +101,9 @@ export async function seedPrismaDatabase(prisma) {
   for (const p of seed.products) {
     const record = await prisma.product.upsert({
       where: { sku: p.sku },
-      update: {},
+      update: {
+        imageUrl: p.imageUrl || null,
+      },
       create: {
         sku: p.sku,
         name: p.name,

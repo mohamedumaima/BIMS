@@ -27,56 +27,33 @@ export function makeSpiceSvg({ bg1, bg2, accent, title, code }) {
 }
 
 export const SPICE_IMAGES = {
-  cinnamon: makeSpiceSvg({
-    bg1: '#78350f',
-    bg2: '#b45309',
-    accent: '#fbbf24',
-    title: 'Alba Cinnamon',
-    code: 'CIN-01',
-  }),
-  pepper: makeSpiceSvg({
-    bg1: '#18181b',
-    bg2: '#3f3f46',
-    accent: '#22c55e',
-    title: 'Black Pepper',
-    code: 'PEP-04',
-  }),
-  cardamom: makeSpiceSvg({
-    bg1: '#064e3b',
-    bg2: '#059669',
-    accent: '#6ee7b7',
-    title: 'Green Cardamom',
-    code: 'CRD-02',
-  }),
-  cloves: makeSpiceSvg({
-    bg1: '#4c1d95',
-    bg2: '#7c3aed',
-    accent: '#f97316',
-    title: 'Ceylon Cloves',
-    code: 'CLV-03',
-  }),
-  nutmeg: makeSpiceSvg({
-    bg1: '#7c2d12',
-    bg2: '#c2410c',
-    accent: '#fdba74',
-    title: 'Whole Nutmeg',
-    code: 'NUT-05',
-  }),
-  turmeric: makeSpiceSvg({
-    bg1: '#854d0e',
-    bg2: '#eab308',
-    accent: '#fef08a',
-    title: 'Ceylon Turmeric',
-    code: 'TUR-06',
-  }),
-  vanilla: makeSpiceSvg({
-    bg1: '#312e81',
-    bg2: '#4f46e5',
-    accent: '#c4b5fd',
-    title: 'Ceylon Vanilla',
-    code: 'VAN-07',
-  }),
+  cinnamon: '/images/spices/cinnamon.webp',
+  pepper: '/images/spices/pepper.jpg',
+  cardamom: '/images/spices/cardamom.jpg',
+  cloves: '/images/spices/cloves.jpg',
+  nutmeg: '/images/spices/nutmeg.jpg',
+  turmeric: '/images/spices/turmeric.jpg',
+  vanilla: '/images/spices/vanilla.jpg',
 };
+
+/**
+ * Resolves the real static product photo URL for any of the 7 core Sri Lankan spices
+ * by SKU, category, or product name.
+ */
+export function resolveDefaultSpiceImage(item = {}) {
+  const sku = String(item.sku || '').toUpperCase();
+  const text = `${item.name || ''} ${item.category || ''} ${sku}`.toLowerCase();
+  if (sku === 'SKU-CIN-01' || text.includes('cinnamon')) return SPICE_IMAGES.cinnamon;
+  if (sku === 'SKU-PEP-04' || text.includes('pepper')) return SPICE_IMAGES.pepper;
+  if (sku === 'SKU-CRD-02' || text.includes('cardamom')) return SPICE_IMAGES.cardamom;
+  if (sku === 'SKU-CLV-03' || text.includes('clove')) return SPICE_IMAGES.cloves;
+  if (sku === 'SKU-NUT-05' || text.includes('nutmeg') || text.includes('mace')) {
+    return SPICE_IMAGES.nutmeg;
+  }
+  if (sku === 'SKU-TUR-06' || text.includes('turmeric')) return SPICE_IMAGES.turmeric;
+  if (sku === 'SKU-VAN-07' || text.includes('vanilla')) return SPICE_IMAGES.vanilla;
+  return null;
+}
 
 export function createInitialSeedData() {
   return {

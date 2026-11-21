@@ -5,11 +5,13 @@ import {
   USD_TO_LKR_RATE,
   createInitialSeedData,
   makeSpiceSvg,
+  resolveDefaultSpiceImage,
 } from '../config/defaultSeedData.js';
 import { env, isPlaceholderDatabaseUrl } from '../config/env.js';
 import { getSupabaseAdmin } from '../config/supabase.js';
 import {
   deleteStoredDocumentAsset,
+  fetchStoredDocumentBuffer,
   resolveDocumentAccessUrl,
 } from '../utils/fileStorage.js';
 import {
@@ -576,13 +578,19 @@ export async function createProductSku(payload = {}, userId = null) {
     .trim()
     .toUpperCase();
 
-  const defaultSvg = makeSpiceSvg({
-    bg1: '#4c1d95',
-    bg2: '#7c3aed',
-    accent: '#22c55e',
-    title: cleanName.slice(0, 14),
-    code: skuCode.slice(-6),
-  });
+  const defaultSvg =
+    resolveDefaultSpiceImage({
+      sku: skuCode,
+      name: cleanName,
+      category: payload.category,
+    }) ||
+    makeSpiceSvg({
+      bg1: '#4c1d95',
+      bg2: '#7c3aed',
+      accent: '#22c55e',
+      title: cleanName.slice(0, 14),
+      code: skuCode.slice(-6),
+    });
   const imageUrl = payload.imageUrl?.trim() ? payload.imageUrl.trim() : defaultSvg;
 
   if (await isPostgresConnected()) {
@@ -684,13 +692,19 @@ export async function updateProductSku(productId, payload) {
     if (payload.originRegion !== undefined) data.originRegion = payload.originRegion;
     if (payload.description !== undefined) data.description = payload.description;
     if (payload.clearImage === true || payload.clearImage === 'true') {
-      data.imageUrl = makeSpiceSvg({
-        bg1: '#4c1d95',
-        bg2: '#7c3aed',
-        accent: '#22c55e',
-        title: (data.name || existing.name || 'Ceylon Spice').slice(0, 14),
-        code: (data.sku || existing.sku || `SKU-${id}`).slice(-6),
-      });
+      data.imageUrl =
+        resolveDefaultSpiceImage({
+          sku: data.sku || existing.sku,
+          name: data.name || existing.name,
+          category: data.category || existing.category,
+        }) ||
+        makeSpiceSvg({
+          bg1: '#4c1d95',
+          bg2: '#7c3aed',
+          accent: '#22c55e',
+          title: (data.name || existing.name || 'Ceylon Spice').slice(0, 14),
+          code: (data.sku || existing.sku || `SKU-${id}`).slice(-6),
+        });
     } else if (payload.imageUrl?.trim()) {
       data.imageUrl = payload.imageUrl.trim();
     }
@@ -723,13 +737,15 @@ export async function updateProductSku(productId, payload) {
   if (payload.originRegion !== undefined) product.originRegion = payload.originRegion;
   if (payload.description !== undefined) product.description = payload.description;
   if (payload.clearImage === true || payload.clearImage === 'true') {
-    product.imageUrl = makeSpiceSvg({
-      bg1: '#4c1d95',
-      bg2: '#7c3aed',
-      accent: '#22c55e',
-      title: (product.name || 'Ceylon Spice').slice(0, 14),
-      code: (product.sku || `SKU-${product.productId}`).slice(-6),
-    });
+    product.imageUrl =
+      resolveDefaultSpiceImage(product) ||
+      makeSpiceSvg({
+        bg1: '#4c1d95',
+        bg2: '#7c3aed',
+        accent: '#22c55e',
+        title: (product.name || 'Ceylon Spice').slice(0, 14),
+        code: (product.sku || `SKU-${product.productId}`).slice(-6),
+      });
   } else if (payload.imageUrl?.trim()) {
     product.imageUrl = payload.imageUrl.trim();
   }
@@ -2043,7 +2059,38 @@ export async function getAuthorizedDocumentAccess(user, docId, { download = fals
   return {
     document: sanitizeDocumentSummary(doc),
     accessUrl,
+    contentEndpoint: `/documents/${doc.docId}/content`,
     expiresInSeconds: 300,
+  };
+}
+
+export async function getAuthorizedDocumentBuffer(user, docId) {
+  const id = Number(docId);
+  const permissions = await loadPermissionsList();
+  let doc = null;
+
+  if (await isPostgresConnected()) {
+    const row = await getPrisma().document.findUnique({
+      where: { docId: id },
+      include: { uploadedBy: true },
+    });
+    doc = row ? mapDocument(row) : null;
+  } else {
+    doc = memoryStore.documents.find((d) => d.docId === id) || null;
+  }
+
+  if (!doc) throw buildError('Document not found', 404);
+  if (!canUserAccessDocument(user, doc, permissions)) {
+    throw buildError('Insufficient permissions to view this document', 403);
+  }
+
+  const asset = await fetchStoredDocumentBuffer(doc);
+  if (!asset) {
+    throw buildError('Unable to retrieve document content from storage', 502);
+  }
+  return {
+    document: sanitizeDocumentSummary(doc),
+    ...asset,
   };
 }
 

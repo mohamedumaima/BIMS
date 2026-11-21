@@ -8,7 +8,6 @@ import {
   FileCheck2,
   Globe2,
   Landmark,
-  Leaf,
   Moon,
   ShieldCheck,
   Ship,
@@ -16,7 +15,89 @@ import {
 } from 'lucide-react';
 import { loginUser } from '../features/auth/authSlice';
 import { toggleTheme } from '../features/theme/themeSlice';
+import HeroCarousel from '../components/HeroCarousel';
 import { api } from '../services/api';
+
+const DEFAULT_SPICES = [
+  {
+    productId: 1,
+    sku: 'SKU-CIN-01',
+    name: 'Ceylon Alba Cinnamon',
+    hsCode: '0906.11',
+    originRegion: 'Galle & Matara',
+    imageUrl: '/images/spices/cinnamon.webp',
+    unitPrice: 48,
+    unitPriceLkr: 14400,
+  },
+  {
+    productId: 2,
+    sku: 'SKU-PEP-04',
+    name: 'Organic Black Pepper',
+    hsCode: '0904.11',
+    originRegion: 'Matale & Kandy',
+    imageUrl: '/images/spices/pepper.jpg',
+    unitPrice: 28,
+    unitPriceLkr: 8400,
+  },
+  {
+    productId: 3,
+    sku: 'SKU-CRD-02',
+    name: 'Green Cardamom',
+    hsCode: '0908.31',
+    originRegion: 'Knuckles Range, Kandy',
+    imageUrl: '/images/spices/cardamom.jpg',
+    unitPrice: 64,
+    unitPriceLkr: 19200,
+  },
+  {
+    productId: 4,
+    sku: 'SKU-CLV-03',
+    name: 'Hand-Picked Ceylon Cloves',
+    hsCode: '0907.10',
+    originRegion: 'Kandy Highlands',
+    imageUrl: '/images/spices/cloves.jpg',
+    unitPrice: 36,
+    unitPriceLkr: 10800,
+  },
+  {
+    productId: 5,
+    sku: 'SKU-NUT-05',
+    name: 'Matale Whole Nutmeg & Mace',
+    hsCode: '0908.11',
+    originRegion: 'Matale Valley',
+    imageUrl: '/images/spices/nutmeg.jpg',
+    unitPrice: 32,
+    unitPriceLkr: 9600,
+  },
+  {
+    productId: 6,
+    sku: 'SKU-TUR-06',
+    name: 'Organic Ceylon Turmeric',
+    hsCode: '0910.30',
+    originRegion: 'Kurunegala & Ampara',
+    imageUrl: '/images/spices/turmeric.jpg',
+    unitPrice: 18,
+    unitPriceLkr: 5400,
+  },
+  {
+    productId: 7,
+    sku: 'SKU-VAN-07',
+    name: 'Gourmet Ceylon Vanilla Pods',
+    hsCode: '0905.10',
+    originRegion: 'Kandy & Gampola',
+    imageUrl: '/images/spices/vanilla.jpg',
+    unitPrice: 220,
+    unitPriceLkr: 66000,
+  },
+];
+
+function resolveSpiceImage(spice) {
+  if (spice.imageUrl && !String(spice.imageUrl).startsWith('data:image/svg+xml')) {
+    return spice.imageUrl;
+  }
+  const match = DEFAULT_SPICES.find((d) => d.sku === spice.sku);
+  return match ? match.imageUrl : spice.imageUrl;
+}
 
 export default function LandingPage() {
   const dispatch = useDispatch();
@@ -39,7 +120,10 @@ export default function LandingPage() {
     }
   };
 
-  const spices = showcase?.spices || [];
+  const spices = (showcase?.spices?.length ? showcase.spices : DEFAULT_SPICES).map((s) => ({
+    ...s,
+    imageUrl: resolveSpiceImage(s),
+  }));
 
   return (
     <div className="min-h-screen transition-colors">
@@ -53,9 +137,11 @@ export default function LandingPage() {
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-500">
-              <Leaf className="w-5 h-5" />
-            </div>
+            <img
+              src="/images/logo-icon.png"
+              alt="Ceylon Spices BIMS Logo"
+              className="w-10 h-10 rounded-xl object-contain bg-white p-0.5 border border-amber-500/30 shadow-sm shrink-0"
+            />
             <div className="leading-tight">
               <p className="text-sm font-bold tracking-tight">Ceylon Spices</p>
               <p className="text-[11px] text-zinc-400 font-medium">BIMS Trade Platform</p>
@@ -117,91 +203,105 @@ export default function LandingPage() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-10 space-y-12">
         {/* HERO BENTO GRID */}
-        <section className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
-          <div className="lg:col-span-7 bims-card p-7 sm:p-9 flex flex-col justify-between">
-            <div>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-violet-500/15 text-violet-400 border border-violet-500/30 mb-4">
-                <Ship className="w-3.5 h-3.5" />
-                Business Management &amp; Import-Export System
-              </span>
-              <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight">
-                Unified Sri Lankan Spice Trade, Inventory &amp; Customs Automation
-              </h1>
-              <p className="text-sm text-zinc-400 mt-3 max-w-2xl leading-relaxed">
-                Manage export-grade Ceylon Cinnamon, Pepper, Cardamom, Cloves, Nutmeg, Turmeric,
-                and Vanilla in one platform — with dual-currency support (<strong>USD $</strong> for
-                International Buyers &amp; Exports and <strong>LKR Rs.</strong> for Local Buyers &amp;
-                Sri Lankan Growers), automated PDFKit customs docs, and a Gemini AI Copilot.
-              </p>
+        <section className="space-y-5">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+            <div className="lg:col-span-6 bims-card p-7 sm:p-8 flex flex-col justify-between">
+              <div>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-violet-500/15 text-violet-600 dark:text-violet-400 border border-violet-500/30 mb-4">
+                  <Ship className="w-3.5 h-3.5" />
+                  Business Management &amp; Import-Export System
+                </span>
+                <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight">
+                  Unified Sri Lankan Spice Trade, Inventory &amp; Customs Automation
+                </h1>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-3 max-w-2xl leading-relaxed">
+                  Manage export-grade Ceylon Cinnamon, Pepper, Cardamom, Cloves, Nutmeg, Turmeric,
+                  and Vanilla in one platform — with dual-currency support (<strong>USD $</strong>{' '}
+                  for International Buyers &amp; Exports and <strong>LKR Rs.</strong> for Local
+                  Buyers &amp; Sri Lankan Growers), automated PDFKit customs docs, and a Gemini AI
+                  Copilot.
+                </p>
+              </div>
+
+              <div
+                className="mt-7 pt-5 border-t flex flex-wrap items-center gap-2.5"
+                style={{ borderColor: 'var(--border-card)' }}
+              >
+                <Link
+                  to="/login"
+                  className="px-5 py-2.5 rounded-full bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold flex items-center gap-2 shadow-lg shadow-violet-600/25"
+                >
+                  <span>Sign In to BIMS Portal</span>
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+
+                <button
+                  type="button"
+                  onClick={() => handleQuickDemoLogin('admin@ceylonspices.com')}
+                  className="px-3.5 py-2.5 rounded-full bims-subcard text-xs font-semibold hover:border-violet-500/50 cursor-pointer"
+                >
+                  Quick Launch: Admin Demo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickDemoLogin('manager@ceylonspices.com')}
+                  className="px-3.5 py-2.5 rounded-full bims-subcard text-xs font-semibold hover:border-emerald-500/50 cursor-pointer"
+                >
+                  Manager Demo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickDemoLogin('staff@ceylonspices.com')}
+                  className="px-3.5 py-2.5 rounded-full bims-subcard text-xs font-semibold hover:border-amber-500/50 cursor-pointer"
+                >
+                  Staff Demo
+                </button>
+              </div>
             </div>
 
-            <div className="mt-7 pt-6 border-t border-zinc-800/40 flex flex-wrap items-center gap-3">
-              <Link
-                to="/login"
-                className="px-6 py-3 rounded-full bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold flex items-center gap-2 shadow-lg shadow-violet-600/25"
-              >
-                <span>Sign In to BIMS Portal</span>
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-
-              <button
-                type="button"
-                onClick={() => handleQuickDemoLogin('admin@ceylonspices.com')}
-                className="px-4 py-2.5 rounded-full bims-subcard text-xs font-semibold hover:border-violet-500/50 cursor-pointer"
-              >
-                Quick Launch: Admin Demo
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickDemoLogin('manager@ceylonspices.com')}
-                className="px-4 py-2.5 rounded-full bims-subcard text-xs font-semibold hover:border-emerald-500/50 cursor-pointer"
-              >
-                Manager Demo
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickDemoLogin('staff@ceylonspices.com')}
-                className="px-4 py-2.5 rounded-full bims-subcard text-xs font-semibold hover:border-amber-500/50 cursor-pointer"
-              >
-                Staff Demo
-              </button>
+            <div className="lg:col-span-6 flex flex-col">
+              <HeroCarousel />
             </div>
           </div>
 
-          <div id="currencies" className="lg:col-span-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="bims-card p-5 flex flex-col justify-between">
+          <div id="currencies" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-5">
+            <div className="lg:col-span-3 bims-card p-5 flex flex-col justify-between">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-zinc-400">International Exports</span>
-                <Globe2 className="w-4 h-4 text-emerald-400" />
+                <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                  International Exports
+                </span>
+                <Globe2 className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
               </div>
               <div className="my-3">
-                <p className="text-3xl font-bold text-emerald-400">$485K</p>
-                <p className="text-xs text-zinc-400 mt-1">
+                <p className="text-3xl font-bold text-emerald-500 dark:text-emerald-400">$485K</p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
                   Settled in <strong>USD ($)</strong> across USA, Germany, UAE &amp; UK
                 </p>
               </div>
-              <span className="inline-block px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/15 text-emerald-400 self-start">
+              <span className="inline-block px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 self-start">
                 USD ($) International Ledger
               </span>
             </div>
 
-            <div className="bims-card p-5 flex flex-col justify-between">
+            <div className="lg:col-span-3 bims-card p-5 flex flex-col justify-between">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-zinc-400">Domestic Sri Lanka Trade</span>
-                <Landmark className="w-4 h-4 text-amber-400" />
+                <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                  Domestic Sri Lanka Trade
+                </span>
+                <Landmark className="w-4 h-4 text-amber-500 dark:text-amber-400" />
               </div>
               <div className="my-3">
-                <p className="text-3xl font-bold text-amber-400">Rs. 68.5M</p>
-                <p className="text-xs text-zinc-400 mt-1">
+                <p className="text-3xl font-bold text-amber-500 dark:text-amber-400">Rs. 68.5M</p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
                   Local Buyers &amp; Kandy/Matale Suppliers in <strong>LKR (Rs.)</strong>
                 </p>
               </div>
-              <span className="inline-block px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-500/15 text-amber-400 self-start">
+              <span className="inline-block px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-500/15 text-amber-600 dark:text-amber-400 self-start">
                 LKR (Rs.) Domestic Ledger
               </span>
             </div>
 
-            <div className="sm:col-span-2 rounded-3xl bg-gradient-to-br from-[#6D28D9] via-[#7C3AED] to-[#4F46E5] p-6 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="sm:col-span-2 lg:col-span-6 rounded-3xl bg-gradient-to-br from-[#6D28D9] via-[#7C3AED] to-[#4F46E5] p-6 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2 text-xs font-semibold text-violet-200">
                   <Bot className="w-4 h-4" />
